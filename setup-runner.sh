@@ -120,7 +120,15 @@ sudo apt-get install -y libicu-dev
 # Create runner directory
 #-------------------------------------------------------------------------------
 log_step "Creating runner directory..."
-sudo mkdir -p ${RUNNER_DIR}
+
+# Check if directory is in user's home (no sudo needed) or system path (sudo needed)
+if [[ "${RUNNER_DIR}" == /home/${RUNNER_USER}/* ]]; then
+    mkdir -p ${RUNNER_DIR}
+else
+    sudo mkdir -p ${RUNNER_DIR}
+    sudo chown -R ${RUNNER_USER}:${RUNNER_USER} ${RUNNER_DIR}
+fi
+
 cd ${RUNNER_DIR}
 
 #-------------------------------------------------------------------------------
