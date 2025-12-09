@@ -85,10 +85,22 @@ echo "  Runner Directory: ${RUNNER_DIR}"
 echo ""
 
 #-------------------------------------------------------------------------------
-# Check if running as ubuntu user
+# Check if running as root/sudo (not allowed for runner config)
 #-------------------------------------------------------------------------------
-if [[ "$(whoami)" != "ubuntu" ]]; then
-    log_warn "This script should be run as 'ubuntu' user"
+if [[ $EUID -eq 0 ]]; then
+    log_error "This script must NOT be run as root or with sudo"
+    log_error "The GitHub Actions runner cannot be configured as root"
+    log_error ""
+    log_error "Please run as a regular user (e.g., ubuntu):"
+    log_error "  ./setup-runner.sh $@"
+    exit 1
+fi
+
+#-------------------------------------------------------------------------------
+# Check if running as expected user
+#-------------------------------------------------------------------------------
+if [[ "$(whoami)" != "${RUNNER_USER}" ]]; then
+    log_warn "This script is configured to run as '${RUNNER_USER}' user"
     log_warn "Current user: $(whoami)"
     read -p "Continue anyway? (y/N): " -n 1 -r
     echo
@@ -108,7 +120,8 @@ sudo apt-get install -y libicu-dev
 # Create runner directory
 #-------------------------------------------------------------------------------
 log_step "Creating runner directory..."
-mkdir -p ${RUNNER_DIR}
+sudo mkdir -p ${RUNNER_DIR}
+sudo chown -R ${RUNNER_USER}:${RUNNER_USER} ${RUNNER_DIR}
 cd ${RUNNER_DIR}
 
 #-------------------------------------------------------------------------------

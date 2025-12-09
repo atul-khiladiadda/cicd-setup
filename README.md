@@ -76,7 +76,7 @@ This installs:
 ### Step 5: Setup GitHub Actions Runner
 
 ```bash
-# Run as ubuntu user (not root!)
+# Run as ubuntu user (NOT with sudo - the script handles sudo internally where needed)
 ./setup-runner.sh https://github.com/your-username/your-repo YOUR_TOKEN
 
 # With custom name and labels
