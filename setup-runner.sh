@@ -20,7 +20,7 @@ NC='\033[0m' # No Color
 
 # Configuration
 RUNNER_VERSION="2.311.0"
-RUNNER_DIR="/opt/github-runner"
+RUNNER_DIR="/home/ubuntu/actions-runner"
 RUNNER_USER="ubuntu"
 
 log_info() {
