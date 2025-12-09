@@ -20,7 +20,10 @@ on:
           - staging
 
 env:
-  PROJECT_NAME: ${{ github.event.repository.name }}
+  # ============== CONFIGURE THESE ==============
+  APP_BASE_DIR: /home/ubuntu/app-deploy    # Base directory for deployments
+  PROJECT_NAME: ${{ github.event.repository.name }}  # Or set custom name
+  # =============================================
   APP_DIR: /home/ubuntu/app-deploy/${{ github.event.repository.name }}
   NODE_ENV: production
 

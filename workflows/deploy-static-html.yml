@@ -21,8 +21,10 @@ on:
           - staging
 
 env:
-  PROJECT_NAME: ${{ github.event.repository.name }}
-  NGINX_ROOT: /var/www/${{ github.event.repository.name }}
+  # ============== CONFIGURE THESE ==============
+  PROJECT_NAME: ${{ github.event.repository.name }}  # Or set custom name
+  NGINX_ROOT: /var/www/${{ github.event.repository.name }}  # Nginx web root
+  # =============================================
 
 jobs:
   deploy:

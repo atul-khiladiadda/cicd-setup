@@ -3,9 +3,15 @@
 #===============================================================================
 # Script: deploy.sh
 # Description: Deploy a Node.js application using PM2
-# Usage: ./deploy.sh <project_name> [environment]
+# Usage: ./deploy.sh <project_name_or_path> [environment]
 #
 # This script is called by the GitHub Actions workflow to deploy the application.
+#
+# Examples:
+#   ./deploy.sh my-api                              # Uses default base dir
+#   ./deploy.sh my-api production                   # With environment
+#   ./deploy.sh /home/ubuntu/app-deploy/my-api     # Full path
+#   ./deploy.sh /var/www/myproject staging         # Custom path with env
 #===============================================================================
 
 set -e
@@ -17,8 +23,8 @@ YELLOW='\033[1;33m'
 CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
-# Configuration
-APP_BASE_DIR="/home/ubuntu/app-deploy"
+# Configuration - Change these defaults as needed
+DEFAULT_APP_BASE_DIR="/home/ubuntu/app-deploy"
 LOG_DIR="/home/ubuntu/logs"
 
 log_info() {
@@ -39,14 +45,19 @@ log_step() {
 
 print_usage() {
     echo ""
-    echo "Usage: $0 <project_name> [environment]"
+    echo "Usage: $0 <project_name_or_path> [environment]"
     echo ""
     echo "Arguments:"
-    echo "  project_name  - Name of the project (used for directory and PM2 process name)"
-    echo "  environment   - (Optional) Environment name (default: production)"
+    echo "  project_name_or_path  - Project name or full path to the project"
+    echo "                          If just a name: uses ${DEFAULT_APP_BASE_DIR}/<name>"
+    echo "                          If a path (starts with /): uses the full path"
+    echo "  environment           - (Optional) Environment name (default: production)"
     echo ""
-    echo "Example:"
-    echo "  $0 my-api production"
+    echo "Examples:"
+    echo "  $0 my-api                              # ${DEFAULT_APP_BASE_DIR}/my-api"
+    echo "  $0 my-api production                   # With environment"
+    echo "  $0 /home/ubuntu/app-deploy/my-api     # Full path"
+    echo "  $0 /var/www/myproject staging         # Custom path"
     echo ""
 }
 
@@ -59,9 +70,19 @@ if [[ $# -lt 1 ]]; then
     exit 1
 fi
 
-PROJECT_NAME="$1"
+PROJECT_INPUT="$1"
 ENVIRONMENT="${2:-production}"
-APP_DIR="${APP_BASE_DIR}/${PROJECT_NAME}"
+
+# Determine if input is a full path or just a project name
+if [[ "$PROJECT_INPUT" == /* ]]; then
+    # Full path provided
+    APP_DIR="$PROJECT_INPUT"
+    PROJECT_NAME=$(basename "$APP_DIR")
+else
+    # Just project name - use default base directory
+    PROJECT_NAME="$PROJECT_INPUT"
+    APP_DIR="${DEFAULT_APP_BASE_DIR}/${PROJECT_NAME}"
+fi
 
 log_info "Starting deployment..."
 echo "  Project: ${PROJECT_NAME}"
