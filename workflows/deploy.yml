@@ -1,0 +1,167 @@
+# GitHub Actions Workflow for Node.js Deployment
+# Copy this file to your repository: .github/workflows/deploy.yml
+
+name: Deploy to EC2
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - production
+          - staging
+
+env:
+  PROJECT_NAME: ${{ github.event.repository.name }}
+  APP_DIR: /home/ubuntu/app-deploy/${{ github.event.repository.name }}
+  NODE_ENV: production
+
+jobs:
+  deploy:
+    name: Deploy Application
+    runs-on: [self-hosted, ubuntu, ec2]
+    
+    steps:
+      - name: Display deployment info
+        run: |
+          echo "🚀 Starting deployment..."
+          echo "Repository: ${{ github.repository }}"
+          echo "Branch: ${{ github.ref_name }}"
+          echo "Commit: ${{ github.sha }}"
+          echo "Project: ${{ env.PROJECT_NAME }}"
+          echo "Deploy Path: ${{ env.APP_DIR }}"
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          clean: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Create app directory
+        run: |
+          mkdir -p ${{ env.APP_DIR }}
+          
+      - name: Sync files to app directory
+        run: |
+          rsync -av --delete \
+            --exclude '.git' \
+            --exclude 'node_modules' \
+            --exclude '.github' \
+            ./ ${{ env.APP_DIR }}/
+
+      - name: Install dependencies
+        working-directory: ${{ env.APP_DIR }}
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
+
+      - name: Run build
+        working-directory: ${{ env.APP_DIR }}
+        run: |
+          if grep -q '"build"' package.json; then
+            npm run build
+          else
+            echo "No build script found, skipping..."
+          fi
+
+      - name: Run tests
+        working-directory: ${{ env.APP_DIR }}
+        run: |
+          if grep -q '"test"' package.json; then
+            npm test || echo "Tests failed but continuing deployment"
+          else
+            echo "No test script found, skipping..."
+          fi
+        continue-on-error: true
+
+      - name: Setup environment file
+        working-directory: ${{ env.APP_DIR }}
+        run: |
+          if [ -n "${{ secrets.ENV_FILE }}" ]; then
+            echo "${{ secrets.ENV_FILE }}" > .env
+            echo "Environment file created from secrets"
+          elif [ -f .env.example ]; then
+            cp .env.example .env
+            echo "Copied .env.example to .env"
+          fi
+
+      - name: Deploy with PM2
+        working-directory: ${{ env.APP_DIR }}
+        run: |
+          # Determine PM2 config or entry point
+          if [ -f ecosystem.config.js ]; then
+            PM2_CONFIG="ecosystem.config.js"
+          elif [ -f ecosystem.config.cjs ]; then
+            PM2_CONFIG="ecosystem.config.cjs"
+          elif [ -f pm2.config.js ]; then
+            PM2_CONFIG="pm2.config.js"
+          fi
+
+          # Stop existing process if running
+          pm2 delete ${{ env.PROJECT_NAME }} 2>/dev/null || true
+
+          # Start application
+          if [ -n "$PM2_CONFIG" ]; then
+            pm2 start $PM2_CONFIG --env production
+          else
+            # Determine entry point
+            ENTRY_POINT="index.js"
+            [ -f dist/index.js ] && ENTRY_POINT="dist/index.js"
+            [ -f build/index.js ] && ENTRY_POINT="build/index.js"
+            [ -f src/index.js ] && ENTRY_POINT="src/index.js"
+            
+            pm2 start $ENTRY_POINT \
+              --name ${{ env.PROJECT_NAME }} \
+              --max-memory-restart 500M \
+              --time \
+              -i max
+          fi
+
+          # Save PM2 process list
+          pm2 save
+
+      - name: Health check
+        run: |
+          sleep 5
+          pm2 describe ${{ env.PROJECT_NAME }}
+          
+          STATUS=$(pm2 jlist | jq -r '.[] | select(.name=="${{ env.PROJECT_NAME }}") | .pm2_env.status')
+          
+          if [ "$STATUS" = "online" ]; then
+            echo "✅ Application is running!"
+          else
+            echo "❌ Application status: $STATUS"
+            pm2 logs ${{ env.PROJECT_NAME }} --lines 30
+            exit 1
+          fi
+
+      - name: Deployment summary
+        run: |
+          echo ""
+          echo "=============================================="
+          echo "✅ Deployment Complete!"
+          echo "=============================================="
+          echo ""
+          echo "📦 Project: ${{ env.PROJECT_NAME }}"
+          echo "🌿 Branch: ${{ github.ref_name }}"
+          echo "📝 Commit: ${{ github.sha }}"
+          echo "📁 Path: ${{ env.APP_DIR }}"
+          echo ""
+          pm2 list
+
