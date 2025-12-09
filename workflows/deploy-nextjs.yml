@@ -1,0 +1,183 @@
+# GitHub Actions Workflow for Next.js Application
+# Builds and runs via PM2 with .env file support
+# Copy this file to your repository: .github/workflows/deploy.yml
+
+name: Deploy Quizwall Prod
+
+on:
+  push:
+    branches:
+      - prod
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - production
+          - staging
+
+env:
+  PROJECT_NAME: ${{ github.event.repository.name }}
+  APP_DIR: /home/ubuntu/app-deploy/${{ github.event.repository.name }}
+  NODE_ENV: production
+
+jobs:
+  deploy:
+    name: Build and Deploy Next.js App
+    runs-on: [self-hosted, ubuntu, ec2]
+
+    steps:
+      - name: Display deployment info
+        run: |
+          echo "🚀 Starting Next.js deployment..."
+          echo "Repository: ${{ github.repository }}"
+          echo "Branch: ${{ github.ref_name }}"
+          echo "Commit: ${{ github.sha }}"
+          echo "Project: ${{ env.PROJECT_NAME }}"
+          echo "Deploy Path: ${{ env.APP_DIR }}"
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          clean: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Create app directory
+        run: |
+          mkdir -p ${{ env.APP_DIR }}
+
+      - name: Sync files to app directory
+        run: |
+          rsync -av --delete \
+            --exclude '.git' \
+            --exclude 'node_modules' \
+            --exclude '.github' \
+            --exclude '.env' \
+            --exclude '.env.local' \
+            --exclude '.next' \
+            ./ ${{ env.APP_DIR }}/
+
+      - name: Setup environment file
+        working-directory: ${{ env.APP_DIR }}
+        run: |
+          # Create .env.local for Next.js (preferred over .env)
+          if [ -n "${{ secrets.ENV_FILE }}" ]; then
+            echo "${{ secrets.ENV_FILE }}" > .env.local
+            echo "Environment file created from secrets"
+          elif [ -f .env.example ]; then
+            cp .env.example .env.local
+            echo "Copied .env.example to .env.local (update with real values!)"
+          fi
+          
+          # Also create .env for runtime vars
+          if [ -n "${{ secrets.ENV_FILE }}" ]; then
+            echo "${{ secrets.ENV_FILE }}" > .env
+          fi
+
+      - name: Install dependencies
+        working-directory: ${{ env.APP_DIR }}
+        run: |
+          # Install all dependencies including devDependencies (needed for build)
+          if [ -f package-lock.json ]; then
+            npm ci --include=dev
+          else
+            npm install --include=dev
+          fi
+
+      - name: Build Next.js application
+        working-directory: ${{ env.APP_DIR }}
+        run: |
+          echo "Building Next.js application..."
+          npm run build
+          
+          # Verify build output
+          if [ -d ".next" ]; then
+            echo "✅ Build successful - .next/ directory created"
+          else
+            echo "❌ Build failed - .next/ directory not found"
+            exit 1
+          fi
+
+      - name: Create PM2 ecosystem file
+        working-directory: ${{ env.APP_DIR }}
+        run: |
+          # Create ecosystem config for Next.js
+          cat > ecosystem.config.js << 'EOF'
+          module.exports = {
+            apps: [{
+              name: '${{ env.PROJECT_NAME }}',
+              script: 'node_modules/next/dist/bin/next',
+              args: 'start',
+              instances: 'max',
+              exec_mode: 'cluster',
+              autorestart: true,
+              watch: false,
+              max_memory_restart: '1G',
+              env_production: {
+                NODE_ENV: 'production',
+                PORT: 3000
+              }
+            }]
+          };
+          EOF
+          
+          echo "✅ PM2 ecosystem config created"
+
+      - name: Deploy with PM2
+        working-directory: ${{ env.APP_DIR }}
+        run: |
+          # Stop and delete existing process
+          pm2 delete ${{ env.PROJECT_NAME }} 2>/dev/null || true
+          
+          # Start application
+          pm2 start ecosystem.config.js --env production
+          
+          # Save PM2 process list
+          pm2 save
+
+      - name: Health check
+        run: |
+          echo "Waiting for Next.js to start..."
+          sleep 10
+          
+          STATUS=$(pm2 jlist | jq -r '.[] | select(.name=="${{ env.PROJECT_NAME }}") | .pm2_env.status')
+          
+          if [ "$STATUS" = "online" ]; then
+            echo "✅ Application is running!"
+            pm2 show ${{ env.PROJECT_NAME }}
+            
+            # Test HTTP response
+            echo ""
+            echo "Testing HTTP response..."
+            curl -s -o /dev/null -w "HTTP Status: %{http_code}\n" http://localhost:3000 || true
+          else
+            echo "❌ Application status: $STATUS"
+            pm2 logs ${{ env.PROJECT_NAME }} --lines 50
+            exit 1
+          fi
+
+      - name: Deployment summary
+        run: |
+          echo ""
+          echo "=============================================="
+          echo "✅ Next.js Deployment Complete!"
+          echo "=============================================="
+          echo ""
+          echo "📦 Project: ${{ env.PROJECT_NAME }}"
+          echo "🌿 Branch: ${{ github.ref_name }}"
+          echo "📝 Commit: ${{ github.sha }}"
+          echo "📁 Path: ${{ env.APP_DIR }}"
+          echo "🌐 URL: http://localhost:3000"
+          echo ""
+          pm2 list
+          echo ""
+          echo "💡 Configure Nginx to proxy requests to port 3000"
+

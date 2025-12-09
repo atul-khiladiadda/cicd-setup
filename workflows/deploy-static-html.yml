@@ -1,0 +1,164 @@
+# GitHub Actions Workflow for Static HTML Website
+# Deploys static files directly via Nginx (no build step)
+# Copy this file to your repository: .github/workflows/deploy.yml
+
+name: Deploy Static HTML
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - production
+          - staging
+
+env:
+  PROJECT_NAME: ${{ github.event.repository.name }}
+  NGINX_ROOT: /var/www/${{ github.event.repository.name }}
+
+jobs:
+  deploy:
+    name: Deploy Static HTML Website
+    runs-on: [self-hosted, ubuntu, ec2]
+
+    steps:
+      - name: Display deployment info
+        run: |
+          echo "🚀 Starting static HTML deployment..."
+          echo "Repository: ${{ github.repository }}"
+          echo "Branch: ${{ github.ref_name }}"
+          echo "Commit: ${{ github.sha }}"
+          echo "Project: ${{ env.PROJECT_NAME }}"
+          echo "Nginx Root: ${{ env.NGINX_ROOT }}"
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          clean: true
+
+      - name: Create Nginx directory
+        run: |
+          sudo mkdir -p ${{ env.NGINX_ROOT }}
+          sudo chown -R $USER:$USER ${{ env.NGINX_ROOT }}
+
+      - name: Deploy files to Nginx
+        run: |
+          # Clear old files
+          rm -rf ${{ env.NGINX_ROOT }}/*
+          
+          # Copy all files except git and github directories
+          rsync -av \
+            --exclude '.git' \
+            --exclude '.github' \
+            --exclude 'README.md' \
+            --exclude '.gitignore' \
+            ./ ${{ env.NGINX_ROOT }}/
+          
+          echo "✅ Files deployed to ${{ env.NGINX_ROOT }}"
+          echo ""
+          echo "Deployed files:"
+          ls -la ${{ env.NGINX_ROOT }}
+
+      - name: Setup Nginx configuration
+        run: |
+          # Create Nginx config for static site
+          sudo tee /etc/nginx/sites-available/${{ env.PROJECT_NAME }} > /dev/null << 'NGINX_CONF'
+          server {
+              listen 80;
+              server_name _;
+              
+              root /var/www/${{ env.PROJECT_NAME }};
+              index index.html index.htm;
+              
+              # Gzip compression
+              gzip on;
+              gzip_vary on;
+              gzip_min_length 1024;
+              gzip_types text/plain text/css text/xml text/javascript application/javascript application/json application/xml image/svg+xml;
+              
+              # Cache static assets
+              location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|pdf)$ {
+                  expires 30d;
+                  add_header Cache-Control "public, immutable";
+              }
+              
+              # HTML files - no cache (for updates)
+              location ~* \.html$ {
+                  expires -1;
+                  add_header Cache-Control "no-cache, no-store, must-revalidate";
+              }
+              
+              # Default location
+              location / {
+                  try_files $uri $uri/ $uri.html =404;
+              }
+              
+              # Custom error pages (if they exist)
+              error_page 404 /404.html;
+              error_page 500 502 503 504 /50x.html;
+              
+              # Security headers
+              add_header X-Frame-Options "SAMEORIGIN" always;
+              add_header X-Content-Type-Options "nosniff" always;
+              add_header X-XSS-Protection "1; mode=block" always;
+              
+              # Deny access to hidden files
+              location ~ /\. {
+                  deny all;
+              }
+          }
+          NGINX_CONF
+          
+          # Enable site if not already enabled
+          if [ ! -L /etc/nginx/sites-enabled/${{ env.PROJECT_NAME }} ]; then
+            sudo ln -sf /etc/nginx/sites-available/${{ env.PROJECT_NAME }} /etc/nginx/sites-enabled/
+          fi
+          
+          # Test and reload Nginx
+          sudo nginx -t
+          sudo systemctl reload nginx
+
+      - name: Verify deployment
+        run: |
+          # Check if index.html exists
+          if [ -f "${{ env.NGINX_ROOT }}/index.html" ]; then
+            echo "✅ index.html found"
+          else
+            echo "⚠️ Warning: index.html not found in root directory"
+          fi
+          
+          # Test Nginx is serving the site
+          echo ""
+          echo "Testing HTTP response..."
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost)
+          echo "HTTP Status: $HTTP_STATUS"
+          
+          if [ "$HTTP_STATUS" = "200" ]; then
+            echo "✅ Nginx is serving the site successfully"
+          else
+            echo "⚠️ Unexpected HTTP status (may need domain configuration)"
+          fi
+
+      - name: Deployment summary
+        run: |
+          echo ""
+          echo "=============================================="
+          echo "✅ Static HTML Deployment Complete!"
+          echo "=============================================="
+          echo ""
+          echo "📦 Project: ${{ env.PROJECT_NAME }}"
+          echo "🌿 Branch: ${{ github.ref_name }}"
+          echo "📝 Commit: ${{ github.sha }}"
+          echo "📁 Nginx Root: ${{ env.NGINX_ROOT }}"
+          echo ""
+          echo "Files deployed:"
+          find ${{ env.NGINX_ROOT }} -type f | head -20
+

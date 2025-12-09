@@ -1,0 +1,165 @@
+# GitHub Actions Workflow for ReactJS Application
+# Builds the React app and deploys static files via Nginx
+# Copy this file to your repository: .github/workflows/deploy.yml
+
+name: Deploy React App
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - production
+          - staging
+
+env:
+  PROJECT_NAME: ${{ github.event.repository.name }}
+  APP_DIR: /home/ubuntu/app-deploy/${{ github.event.repository.name }}
+  NGINX_ROOT: /var/www/${{ github.event.repository.name }}
+  NODE_ENV: production
+
+jobs:
+  deploy:
+    name: Build and Deploy React App
+    runs-on: [self-hosted, ubuntu, ec2]
+
+    steps:
+      - name: Display deployment info
+        run: |
+          echo "🚀 Starting React deployment..."
+          echo "Repository: ${{ github.repository }}"
+          echo "Branch: ${{ github.ref_name }}"
+          echo "Commit: ${{ github.sha }}"
+          echo "Project: ${{ env.PROJECT_NAME }}"
+          echo "Nginx Root: ${{ env.NGINX_ROOT }}"
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          clean: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
+
+      - name: Setup environment file
+        run: |
+          if [ -n "${{ secrets.ENV_FILE }}" ]; then
+            echo "${{ secrets.ENV_FILE }}" > .env
+            echo "Environment file created from secrets"
+          elif [ -f .env.example ]; then
+            cp .env.example .env
+            echo "Copied .env.example to .env"
+          fi
+          
+          # Set production API URL if provided
+          if [ -n "${{ secrets.REACT_APP_API_URL }}" ]; then
+            echo "REACT_APP_API_URL=${{ secrets.REACT_APP_API_URL }}" >> .env
+          fi
+
+      - name: Build React application
+        run: |
+          npm run build
+        env:
+          CI: false
+          NODE_ENV: production
+
+      - name: Create Nginx directory
+        run: |
+          sudo mkdir -p ${{ env.NGINX_ROOT }}
+          sudo chown -R $USER:$USER ${{ env.NGINX_ROOT }}
+
+      - name: Deploy build to Nginx
+        run: |
+          # Clear old files
+          rm -rf ${{ env.NGINX_ROOT }}/*
+          
+          # Copy build output (React uses 'build' or 'dist' folder)
+          if [ -d "build" ]; then
+            cp -r build/* ${{ env.NGINX_ROOT }}/
+          elif [ -d "dist" ]; then
+            cp -r dist/* ${{ env.NGINX_ROOT }}/
+          else
+            echo "❌ No build output found (expected 'build' or 'dist' directory)"
+            exit 1
+          fi
+          
+          echo "✅ Build files deployed to ${{ env.NGINX_ROOT }}"
+
+      - name: Setup Nginx configuration
+        run: |
+          # Create Nginx config for React SPA
+          sudo tee /etc/nginx/sites-available/${{ env.PROJECT_NAME }} > /dev/null << 'NGINX_CONF'
+          server {
+              listen 80;
+              server_name _;
+              
+              root /var/www/${{ env.PROJECT_NAME }};
+              index index.html;
+              
+              # Gzip compression
+              gzip on;
+              gzip_vary on;
+              gzip_min_length 1024;
+              gzip_types text/plain text/css text/xml text/javascript application/javascript application/json application/xml;
+              
+              # Cache static assets
+              location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+                  expires 1y;
+                  add_header Cache-Control "public, immutable";
+              }
+              
+              # React Router support - serve index.html for all routes
+              location / {
+                  try_files $uri $uri/ /index.html;
+              }
+              
+              # Security headers
+              add_header X-Frame-Options "SAMEORIGIN" always;
+              add_header X-Content-Type-Options "nosniff" always;
+              add_header X-XSS-Protection "1; mode=block" always;
+          }
+          NGINX_CONF
+          
+          # Enable site if not already enabled
+          if [ ! -L /etc/nginx/sites-enabled/${{ env.PROJECT_NAME }} ]; then
+            sudo ln -sf /etc/nginx/sites-available/${{ env.PROJECT_NAME }} /etc/nginx/sites-enabled/
+          fi
+          
+          # Test and reload Nginx
+          sudo nginx -t
+          sudo systemctl reload nginx
+
+      - name: Deployment summary
+        run: |
+          echo ""
+          echo "=============================================="
+          echo "✅ React Deployment Complete!"
+          echo "=============================================="
+          echo ""
+          echo "📦 Project: ${{ env.PROJECT_NAME }}"
+          echo "🌿 Branch: ${{ github.ref_name }}"
+          echo "📝 Commit: ${{ github.sha }}"
+          echo "📁 Nginx Root: ${{ env.NGINX_ROOT }}"
+          echo ""
+          echo "Files deployed:"
+          ls -la ${{ env.NGINX_ROOT }}
+

@@ -1,0 +1,189 @@
+# GitHub Actions Workflow for Node.js (TypeScript) Application
+# Builds TypeScript first, then runs via PM2 with ecosystem.config.js
+# Copy this file to your repository: .github/workflows/deploy.yml
+
+name: Deploy Node.js TypeScript App
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - production
+          - staging
+
+env:
+  PROJECT_NAME: ${{ github.event.repository.name }}
+  APP_DIR: /home/ubuntu/app-deploy/${{ github.event.repository.name }}
+  NODE_ENV: production
+
+jobs:
+  deploy:
+    name: Build and Deploy TypeScript App
+    runs-on: [self-hosted, ubuntu, ec2]
+
+    steps:
+      - name: Display deployment info
+        run: |
+          echo "🚀 Starting TypeScript Node.js deployment..."
+          echo "Repository: ${{ github.repository }}"
+          echo "Branch: ${{ github.ref_name }}"
+          echo "Commit: ${{ github.sha }}"
+          echo "Project: ${{ env.PROJECT_NAME }}"
+          echo "Deploy Path: ${{ env.APP_DIR }}"
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          clean: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Create app directory
+        run: |
+          mkdir -p ${{ env.APP_DIR }}
+
+      - name: Sync files to app directory
+        run: |
+          rsync -av --delete \
+            --exclude '.git' \
+            --exclude 'node_modules' \
+            --exclude '.github' \
+            --exclude '.env' \
+            --exclude 'dist' \
+            ./ ${{ env.APP_DIR }}/
+
+      - name: Install all dependencies (including dev for build)
+        working-directory: ${{ env.APP_DIR }}
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
+
+      - name: Build TypeScript
+        working-directory: ${{ env.APP_DIR }}
+        run: |
+          echo "Building TypeScript..."
+          npm run build
+          
+          # Verify build output exists
+          if [ -d "dist" ]; then
+            echo "✅ Build successful - dist/ directory created"
+            ls -la dist/
+          elif [ -d "build" ]; then
+            echo "✅ Build successful - build/ directory created"
+            ls -la build/
+          else
+            echo "❌ Build output directory not found"
+            exit 1
+          fi
+
+      - name: Prune dev dependencies
+        working-directory: ${{ env.APP_DIR }}
+        run: |
+          npm prune --omit=dev
+
+      - name: Setup environment file
+        working-directory: ${{ env.APP_DIR }}
+        run: |
+          if [ -n "${{ secrets.ENV_FILE }}" ]; then
+            echo "${{ secrets.ENV_FILE }}" > .env
+            echo "Environment file created from secrets"
+          elif [ -f .env.example ]; then
+            cp .env.example .env
+            echo "Copied .env.example to .env (update with real values!)"
+          fi
+
+      - name: Verify ecosystem config
+        working-directory: ${{ env.APP_DIR }}
+        run: |
+          if [ ! -f ecosystem.config.js ] && [ ! -f ecosystem.config.cjs ]; then
+            echo "⚠️ No ecosystem.config.js found, creating default..."
+            
+            # Determine entry point
+            ENTRY_POINT="./dist/index.js"
+            [ -f "./build/index.js" ] && ENTRY_POINT="./build/index.js"
+            [ -f "./dist/main.js" ] && ENTRY_POINT="./dist/main.js"
+            [ -f "./dist/server.js" ] && ENTRY_POINT="./dist/server.js"
+            
+            cat > ecosystem.config.js << EOF
+          module.exports = {
+            apps: [{
+              name: '${{ env.PROJECT_NAME }}',
+              script: '${ENTRY_POINT}',
+              instances: 'max',
+              exec_mode: 'cluster',
+              autorestart: true,
+              watch: false,
+              max_memory_restart: '500M',
+              source_map_support: true,
+              env_production: {
+                NODE_ENV: 'production'
+              }
+            }]
+          };
+          EOF
+          fi
+
+      - name: Deploy with PM2
+        working-directory: ${{ env.APP_DIR }}
+        run: |
+          # Determine ecosystem config file
+          if [ -f ecosystem.config.cjs ]; then
+            PM2_CONFIG="ecosystem.config.cjs"
+          else
+            PM2_CONFIG="ecosystem.config.js"
+          fi
+          
+          # Stop and delete existing process
+          pm2 delete ${{ env.PROJECT_NAME }} 2>/dev/null || true
+          
+          # Start application
+          pm2 start $PM2_CONFIG --env production
+          
+          # Save PM2 process list
+          pm2 save
+
+      - name: Health check
+        run: |
+          sleep 5
+          
+          STATUS=$(pm2 jlist | jq -r '.[] | select(.name=="${{ env.PROJECT_NAME }}") | .pm2_env.status')
+          
+          if [ "$STATUS" = "online" ]; then
+            echo "✅ Application is running!"
+            pm2 show ${{ env.PROJECT_NAME }}
+          else
+            echo "❌ Application status: $STATUS"
+            pm2 logs ${{ env.PROJECT_NAME }} --lines 50
+            exit 1
+          fi
+
+      - name: Deployment summary
+        run: |
+          echo ""
+          echo "=============================================="
+          echo "✅ TypeScript Deployment Complete!"
+          echo "=============================================="
+          echo ""
+          echo "📦 Project: ${{ env.PROJECT_NAME }}"
+          echo "🌿 Branch: ${{ github.ref_name }}"
+          echo "📝 Commit: ${{ github.sha }}"
+          echo "📁 Path: ${{ env.APP_DIR }}"
+          echo ""
+          pm2 list
+
