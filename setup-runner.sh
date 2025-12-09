@@ -20,7 +20,7 @@ NC='\033[0m' # No Color
 
 # Configuration
 RUNNER_VERSION="2.311.0"
-RUNNER_DIR="/home/ubuntu/actions-runner"
+RUNNER_DIR="/opt/github-runner"
 RUNNER_USER="ubuntu"
 
 log_info() {
@@ -121,7 +121,6 @@ sudo apt-get install -y libicu-dev
 #-------------------------------------------------------------------------------
 log_step "Creating runner directory..."
 sudo mkdir -p ${RUNNER_DIR}
-sudo chown -R ${RUNNER_USER}:${RUNNER_USER} ${RUNNER_DIR}
 cd ${RUNNER_DIR}
 
 #-------------------------------------------------------------------------------
