@@ -185,17 +185,17 @@ sudo ./svc.sh status
 log_step "Creating helper scripts..."
 
 # Script to check runner status
-cat > ${RUNNER_DIR}/check-status.sh << 'EOF'
+cat > ${RUNNER_DIR}/check-status.sh << EOF
 #!/bin/bash
-cd /home/ubuntu/actions-runner
+cd ${RUNNER_DIR}
 sudo ./svc.sh status
 EOF
 chmod +x ${RUNNER_DIR}/check-status.sh
 
 # Script to restart runner
-cat > ${RUNNER_DIR}/restart-runner.sh << 'EOF'
+cat > ${RUNNER_DIR}/restart-runner.sh << EOF
 #!/bin/bash
-cd /home/ubuntu/actions-runner
+cd ${RUNNER_DIR}
 sudo ./svc.sh stop
 sudo ./svc.sh start
 sudo ./svc.sh status

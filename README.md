@@ -224,13 +224,13 @@ pm2 delete [app-name]
 
 ```bash
 # Check runner status
-cd ~/actions-runner && ./check-status.sh
+cd /opt/github-runner && ./check-status.sh
 
 # View runner logs
-cd ~/actions-runner && ./view-logs.sh
+cd /opt/github-runner && ./view-logs.sh
 
 # Restart runner
-cd ~/actions-runner && ./restart-runner.sh
+cd /opt/github-runner && ./restart-runner.sh
 ```
 
 ## 🔐 Security Recommendations
@@ -254,7 +254,7 @@ sudo systemctl status actions.runner.*
 sudo journalctl -u actions.runner.* -f
 
 # Restart runner service
-cd ~/actions-runner && sudo ./svc.sh restart
+cd /opt/github-runner && sudo ./svc.sh restart
 ```
 
 ### PM2 process not starting
