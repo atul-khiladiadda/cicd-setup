@@ -106,3 +106,4 @@ echo "  - Get new certificate:    sudo ./obtain-ssl.sh <domain> <email>"
 echo "  - View renewal logs:      sudo journalctl -u certbot"
 echo ""
 
+
