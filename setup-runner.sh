@@ -121,13 +121,17 @@ sudo apt-get install -y libicu-dev
 #-------------------------------------------------------------------------------
 log_step "Creating runner directory..."
 
-# Check if directory is in user's home (no sudo needed) or system path (sudo needed)
-if [[ "${RUNNER_DIR}" == /home/${RUNNER_USER}/* ]]; then
-    mkdir -p ${RUNNER_DIR}
-else
-    sudo mkdir -p ${RUNNER_DIR}
-    sudo chown -R ${RUNNER_USER}:${RUNNER_USER} ${RUNNER_DIR}
+# Clean up any existing directory with wrong permissions from failed runs
+if [[ -d "${RUNNER_DIR}" ]]; then
+    log_warn "Existing runner directory found. Cleaning up..."
+    sudo rm -rf ${RUNNER_DIR}
 fi
+
+# Create fresh directory with correct ownership
+mkdir -p ${RUNNER_DIR}
+
+# Ensure correct ownership (in case parent dirs were created with different perms)
+sudo chown -R ${RUNNER_USER}:${RUNNER_USER} ${RUNNER_DIR}
 
 cd ${RUNNER_DIR}
 
