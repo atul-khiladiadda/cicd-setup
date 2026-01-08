@@ -1,62 +1,51 @@
 # CI/CD Setup Scripts for Ubuntu EC2 with GitHub Actions
 
-This repository contains scripts to set up a CI/CD pipeline on an Ubuntu EC2 instance using GitHub Actions self-hosted runner for Node.js projects with PM2.
+Complete setup scripts for deploying Node.js/Next.js/React applications on Ubuntu EC2 with GitHub Actions self-hosted runner, PM2, and Nginx.
 
 ## 📁 Project Structure
 
 ```
 cicd-setup/
-├── setup-dependencies.sh      # Install Node.js, PM2, and system dependencies
-├── setup-runner.sh            # Install and configure GitHub Actions runner
+├── setup-dependencies.sh      # Install Node.js, PM2, Nginx
+├── setup-runner.sh            # Setup GitHub Actions runner
 ├── nginx/
-│   ├── proxy.conf.example     # Nginx config for Node.js/TypeScript/Next.js
-│   ├── static.conf.example    # Nginx config for static HTML/React sites
-│   └── README.md              # Nginx setup guide
-├── scripts/
-│   └── setup-mongodb.sh       # MongoDB installation (optional)
+│   ├── proxy.conf.example     # Nginx for Node.js/TypeScript/Next.js
+│   ├── static.conf.example    # Nginx for HTML/React/Vue/Angular
+│   └── README.md              # Nginx documentation
 ├── ssl/
-│   ├── setup-certbot.sh       # Install and configure Certbot
-│   ├── obtain-ssl.sh          # Obtain SSL certificate
-│   ├── obtain-ssl-static.sh   # SSL for static sites
+│   ├── setup-certbot.sh       # Install Certbot
 │   ├── obtain-ssl-proxy.sh    # SSL for reverse proxy
-│   ├── renew-ssl.sh           # Renew SSL certificates
-│   ├── revoke-ssl.sh          # Revoke SSL certificates
-│   └── list-ssl.sh            # List all SSL certificates
+│   ├── obtain-ssl-static.sh   # SSL for static sites
+│   ├── renew-ssl.sh           # Renew certificates
+│   └── list-ssl.sh            # List certificates
 ├── workflows/
-│   ├── deploy-nodejs.yml      # Workflow for Node.js apps
-│   ├── deploy-nodejs-ts.yml   # Workflow for TypeScript apps
-│   ├── deploy-nextjs.yml      # Workflow for Next.js apps
-│   ├── deploy-react.yml       # Workflow for React apps
+│   ├── deploy-nodejs.yml      # Workflow for Node.js
+│   ├── deploy-nodejs-ts.yml   # Workflow for TypeScript
+│   ├── deploy-nextjs.yml      # Workflow for Next.js
+│   ├── deploy-react.yml       # Workflow for React
 │   └── deploy-static-html.yml # Workflow for static sites
 └── README.md                  # This file
 ```
 
-## 🚀 Quick Start
+## 🚀 Quick Start Guide
 
 ### Step 1: Launch EC2 Instance
 
-1. Launch an Ubuntu 22.04 LTS (or later) EC2 instance
+1. Launch Ubuntu 22.04 LTS EC2 instance
 2. Configure security groups:
-   - SSH (port 22) - your IP
-   - HTTP (port 80) - 0.0.0.0/0
-   - HTTPS (port 443) - 0.0.0.0/0
-   - Your app port (e.g., 3000) - optional
+   - SSH (22) - Your IP
+   - HTTP (80) - 0.0.0.0/0
+   - HTTPS (443) - 0.0.0.0/0
 
-3. SSH into your instance:
-   ```bash
-   ssh -i your-key.pem ubuntu@your-ec2-ip
-   ```
-
-### Step 2: Upload Scripts
-
+3. SSH into instance:
 ```bash
-# From your local machine
-scp -i your-key.pem -r cicd-setup ubuntu@your-ec2-ip:~/
+ssh -i your-key.pem ubuntu@your-ec2-ip
 ```
 
-Or clone/download directly on the EC2:
+### Step 2: Upload/Clone Scripts
+
 ```bash
-# On EC2 instance
+# Clone repository on EC2
 git clone https://github.com/your-username/cicd-setup.git
 cd cicd-setup
 chmod +x *.sh
@@ -65,213 +54,132 @@ chmod +x *.sh
 ### Step 3: Install Dependencies
 
 ```bash
-# Run as root
+# Install Node.js, PM2, Nginx, and build tools
 sudo ./setup-dependencies.sh
 
 # Or specify Node.js version
 sudo ./setup-dependencies.sh 20
 ```
 
-This installs:
-- Node.js (specified version, default: 20)
-- npm
-- PM2 (with startup configuration)
-- Yarn
-- Nginx
-- Build tools
-- Git
+### Step 4: Setup GitHub Actions Runner
 
-### Step 4: Get GitHub Runner Token
+Get runner token from GitHub:
+- Go to **Repository → Settings → Actions → Runners**
+- Click **New self-hosted runner**
+- Copy the token
 
-1. Go to your GitHub repository
-2. Navigate to **Settings** → **Actions** → **Runners**
-3. Click **New self-hosted runner**
-4. Copy the **token** shown in the configuration section
-
-### Step 5: Setup GitHub Actions Runner
-
+Setup runner:
 ```bash
-# Run as ubuntu user (NOT with sudo - the script handles sudo internally where needed)
-./setup-runner.sh https://github.com/your-username/your-repo YOUR_TOKEN
+./setup-runner.sh https://github.com/username/repo YOUR_TOKEN
 
-# With custom name and labels
-./setup-runner.sh https://github.com/your-username/your-repo YOUR_TOKEN prod-runner "self-hosted,ubuntu,production"
+# With custom name
+./setup-runner.sh https://github.com/username/repo YOUR_TOKEN my-runner
 ```
 
-### Step 6: Setup Nginx for Your Application
+### Step 5: Setup Nginx
 
-Choose the appropriate nginx configuration file based on your project type:
-
-#### For Node.js/TypeScript/Next.js Applications (Reverse Proxy)
+#### For Node.js/TypeScript/Next.js (Port 3000 apps)
 
 ```bash
-# Copy the proxy configuration template
-sudo cp nginx/proxy.conf.example /etc/nginx/sites-available/your-app
+sudo cp nginx/proxy.conf.example /etc/nginx/sites-available/myapp
+sudo nano /etc/nginx/sites-available/myapp
+# Edit: server_name and port (default 3000)
 
-# Edit the configuration
-sudo nano /etc/nginx/sites-available/your-app
-
-# Update these values:
-# - server_name: example.com www.example.com
-# - upstream port: 127.0.0.1:3000 (change port if needed)
-
-# Enable the site
-sudo ln -s /etc/nginx/sites-available/your-app /etc/nginx/sites-enabled/
-
-# Test and reload
+sudo ln -s /etc/nginx/sites-available/myapp /etc/nginx/sites-enabled/
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
-#### For Static Websites (HTML/React/Vue/Angular)
+#### For Static Sites (HTML/React/Vue)
 
 ```bash
-# Copy the static configuration template
-sudo cp nginx/static.conf.example /etc/nginx/sites-available/your-site
+sudo cp nginx/static.conf.example /etc/nginx/sites-available/mysite
+sudo nano /etc/nginx/sites-available/mysite
+# Edit: server_name and root path
 
-# Edit the configuration
-sudo nano /etc/nginx/sites-available/your-site
-
-# Update these values:
-# - server_name: example.com www.example.com
-# - root: /home/ubuntu/app-deploy/your-site
-
-# Enable the site
-sudo ln -s /etc/nginx/sites-available/your-site /etc/nginx/sites-enabled/
-
-# Test and reload
+sudo ln -s /etc/nginx/sites-available/mysite /etc/nginx/sites-enabled/
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
-See `nginx/README.md` for detailed instructions and troubleshooting.
+### Step 6: Configure DNS
 
-### Step 7: Configure Your Repository
-
-1. **Choose and copy the appropriate workflow file** to your repository:
-   ```bash
-   # In your project repository
-   mkdir -p .github/workflows
-   
-   # For Node.js (JavaScript)
-   cp /path/to/cicd-setup/workflows/deploy-nodejs.yml .github/workflows/deploy.yml
-   
-   # For TypeScript
-   cp /path/to/cicd-setup/workflows/deploy-nodejs-ts.yml .github/workflows/deploy.yml
-   
-   # For Next.js
-   cp /path/to/cicd-setup/workflows/deploy-nextjs.yml .github/workflows/deploy.yml
-   
-   # For React
-   cp /path/to/cicd-setup/workflows/deploy-react.yml .github/workflows/deploy.yml
-   
-   # For Static HTML
-   cp /path/to/cicd-setup/workflows/deploy-static-html.yml .github/workflows/deploy.yml
-   ```
-
-2. **Add repository secrets** (Settings → Secrets and variables → Actions):
-   - `ENV_FILE` - Contents of your `.env` file (optional)
-
-3. **Create ecosystem.config.js** in your project root (for Node.js/Next.js projects):
-   ```javascript
-   module.exports = {
-     apps: [{
-       name: 'my-app',
-       script: './index.js',  // or './dist/index.js' for TypeScript
-       instances: 'max',
-       exec_mode: 'cluster',
-       env_production: {
-         NODE_ENV: 'production',
-         PORT: 3000
-       }
-     }]
-   };
-   ```
-   
-   **Note:** Add `ecosystem.config.js` to your `.gitignore` to keep production config separate
-
-## 📋 Script Details
-
-### `setup-dependencies.sh`
-
-Installs all required system dependencies for running Node.js applications.
-
+Get your server IP:
 ```bash
-sudo ./setup-dependencies.sh [node_version]
+curl ifconfig.me
 ```
 
-| Argument | Description | Default |
-|----------|-------------|---------|
-| `node_version` | Node.js major version to install | 20 |
-
-### `setup-runner.sh`
-
-Installs and configures the GitHub Actions self-hosted runner.
-
-```bash
-./setup-runner.sh <github_repo_url> <runner_token> [runner_name] [labels]
+Add DNS A record at your domain registrar:
+```
+Type: A
+Name: @ (or subdomain)
+Value: Your EC2 IP
+TTL: 3600
 ```
 
-| Argument | Description | Default |
-|----------|-------------|---------|
-| `github_repo_url` | Full GitHub repository URL | Required |
-| `runner_token` | Registration token from GitHub | Required |
-| `runner_name` | Name for the runner | hostname |
-| `labels` | Comma-separated labels | self-hosted,ubuntu,ec2 |
-
-### Nginx Configuration Files (`nginx/` folder)
-
-#### `proxy.conf.example`
-
-Simple nginx configuration for **Node.js, TypeScript, and Next.js** applications.
-
-**Features:**
-- Reverse proxy to your application (port 3000)
-- WebSocket support (for Next.js HMR)
-- Request forwarding headers
-- 300s timeout for long requests
-- 50MB upload limit
-
-**Usage:**
+Wait 15-30 minutes for DNS propagation, then test:
 ```bash
-sudo cp nginx/proxy.conf.example /etc/nginx/sites-available/your-app
-sudo nano /etc/nginx/sites-available/your-app
-# Edit: server_name, upstream port
-sudo ln -s /etc/nginx/sites-available/your-app /etc/nginx/sites-enabled/
-sudo nginx -t && sudo systemctl reload nginx
+dig your-domain.com
+curl http://your-domain.com
 ```
 
-#### `static.conf.example`
+### Step 7: Setup SSL/HTTPS (Let's Encrypt)
 
-Simple nginx configuration for **static websites** (HTML, React, Vue, Angular).
+After DNS is working, secure your site with free SSL certificate:
 
-**Features:**
-- Serves static files directly
-- SPA routing support (fallback to index.html)
-- Cache static assets for 1 year
-- Never cache HTML files
-- Gzip compression
-
-**Usage:**
 ```bash
-sudo cp nginx/static.conf.example /etc/nginx/sites-available/your-site
-sudo nano /etc/nginx/sites-available/your-site
-# Edit: server_name, root path
-sudo ln -s /etc/nginx/sites-available/your-site /etc/nginx/sites-enabled/
-sudo nginx -t && sudo systemctl reload nginx
+cd ssl
+
+# 1. Install Certbot (one-time)
+sudo ./setup-certbot.sh
+
+# 2. Obtain SSL certificate
+# For Node.js/Next.js (reverse proxy):
+sudo ./obtain-ssl-proxy.sh
+
+# For static sites (HTML/React):
+sudo ./obtain-ssl-static.sh
 ```
 
-See `nginx/README.md` for detailed documentation.
+The script will:
+- Request SSL certificate from Let's Encrypt
+- Automatically update nginx config for HTTPS (port 443)
+- Setup HTTP → HTTPS redirect
+- Configure SSL security settings
+- Auto-renewal via cron
 
-## 🔧 Configuration
+Your site will now be accessible at `https://your-domain.com` 🔒
 
-### PM2 Ecosystem File
+**Manage SSL certificates:**
+```bash
+sudo ./list-ssl.sh      # List all certificates
+sudo ./renew-ssl.sh     # Manual renewal
+```
 
-Create an `ecosystem.config.js` in your project root:
+### Step 8: Configure GitHub Workflow
+
+1. **Copy workflow to your repository:**
+
+```bash
+# In your project repository
+mkdir -p .github/workflows
+
+# Choose based on your project:
+cp /path/to/cicd-setup/workflows/deploy-nodejs.yml .github/workflows/deploy.yml
+# OR
+cp /path/to/cicd-setup/workflows/deploy-nextjs.yml .github/workflows/deploy.yml
+# OR
+cp /path/to/cicd-setup/workflows/deploy-react.yml .github/workflows/deploy.yml
+```
+
+2. **Add GitHub secrets** (Repository → Settings → Secrets):
+   - `ENV_FILE` - Your `.env` file contents (optional)
+
+3. **Create `ecosystem.config.js`** in your project root (Node.js/Next.js only):
 
 ```javascript
 module.exports = {
   apps: [{
     name: 'my-app',
-    script: './dist/index.js',
+    script: './index.js',  // or './dist/index.js'
     instances: 'max',
     exec_mode: 'cluster',
     env_production: {
@@ -282,240 +190,98 @@ module.exports = {
 };
 ```
 
-### Environment Variables
-
-You can set environment variables in three ways:
-
-1. **GitHub Secrets** - Store your `.env` file content in `ENV_FILE` secret
-2. **ecosystem.config.js** - Define env variables in PM2 config
-3. **System environment** - Export in `/etc/environment` or user's `.bashrc`
-
-### Nginx Configuration
-
-Two sample configuration files are provided in the `nginx/` folder:
-
-1. **`nginx/proxy.conf.example`** - For Node.js/TypeScript/Next.js (reverse proxy)
-2. **`nginx/static.conf.example`** - For static sites (HTML/React/Vue/Angular)
-
-These are simplified, production-ready configurations. Copy the appropriate file to `/etc/nginx/sites-available/`, edit your domain and settings, enable the site, test, and reload nginx.
-
-See `nginx/README.md` for complete documentation.
-
-### SSL/HTTPS Configuration
-
-After setting up Nginx and configuring DNS, secure your site with SSL (free Let's Encrypt):
-
-```bash
-# Setup Certbot (one-time installation)
-cd ssl
-sudo ./setup-certbot.sh
-
-# Obtain SSL certificate (will prompt for domain)
-sudo ./obtain-ssl.sh
-
-# Or use specific scripts for your setup:
-sudo ./obtain-ssl-proxy.sh    # For Node.js/Next.js (reverse proxy)
-sudo ./obtain-ssl-static.sh   # For static HTML/React sites
-
-# These scripts will:
-# - Obtain SSL certificate from Let's Encrypt
-# - Automatically update your nginx config for HTTPS (port 443)
-# - Set up HTTP to HTTPS redirect
-# - Configure SSL security settings
-
-# Manage certificates:
-sudo ./list-ssl.sh      # List all SSL certificates
-sudo ./renew-ssl.sh     # Renew certificates (auto-setup in cron)
-sudo ./revoke-ssl.sh    # Revoke a certificate if needed
+4. **Add to `.gitignore`:**
+```
+ecosystem.config.js
+.env
+.env.local
 ```
 
-## 📊 Monitoring & Management
+### Step 9: Deploy
 
-### PM2 Commands
+Push to your main/master branch and GitHub Actions will automatically deploy! 🚀
 
+## 📝 Available Workflows
+
+| Workflow | Use For | Features |
+|----------|---------|----------|
+| `deploy-nodejs.yml` | Node.js (JavaScript) | Installs deps, runs with PM2 |
+| `deploy-nodejs-ts.yml` | TypeScript | Builds, runs with PM2 |
+| `deploy-nextjs.yml` | Next.js | Builds, runs with PM2 |
+| `deploy-react.yml` | React | Builds, deploys static files |
+| `deploy-static-html.yml` | Static HTML | Deploys static files |
+
+## 🔧 Common Commands
+
+### PM2 (Process Manager)
 ```bash
-# View all processes
-pm2 list
-
-# View logs
-pm2 logs [app-name]
-
-# Monitor resources
-pm2 monit
-
-# Restart application
-pm2 restart [app-name]
-
-# Reload with zero downtime
-pm2 reload [app-name]
-
-# Stop application
-pm2 stop [app-name]
-
-# Delete from PM2
-pm2 delete [app-name]
+pm2 list                    # List all processes
+pm2 logs [app-name]         # View logs
+pm2 restart [app-name]      # Restart app
+pm2 reload [app-name]       # Zero-downtime reload
+pm2 monit                   # Monitor resources
 ```
 
-### Runner Commands
-
+### Nginx
 ```bash
-# Check runner status
-cd ~/actions-runner && ./check-status.sh
-
-# View runner logs
-cd ~/actions-runner && ./view-logs.sh
-
-# Restart runner
-cd ~/actions-runner && ./restart-runner.sh
+sudo nginx -t                           # Test config
+sudo systemctl reload nginx             # Reload config
+sudo systemctl restart nginx            # Restart nginx
+sudo tail -f /var/log/nginx/error.log   # View error logs
 ```
 
-## 🔐 Security Recommendations
-
-1. **Use SSH keys** - Never use password authentication
-2. **Restrict security groups** - Only open necessary ports
-3. **Keep system updated** - Run `sudo apt update && sudo apt upgrade` regularly
-4. **Use secrets** - Never commit sensitive data to repositories
-5. **Enable firewall** - UFW is configured by the setup script
-6. **Use HTTPS** - Configure SSL with Let's Encrypt for production
+### GitHub Runner
+```bash
+cd ~/actions-runner
+./check-status.sh           # Check status
+./view-logs.sh              # View logs
+./restart-runner.sh         # Restart runner
+```
 
 ## 🐛 Troubleshooting
 
-### Runner not connecting
-
+### Check if app is running
 ```bash
-# Check runner service status
-sudo systemctl status actions.runner.*
-
-# View runner logs
-sudo journalctl -u actions.runner.* -f
-
-# Restart runner service
-cd ~/actions-runner && sudo ./svc.sh restart
+pm2 list
+curl http://localhost:3000
 ```
 
-### PM2 process not starting
-
+### Check nginx logs
 ```bash
-# Check PM2 logs
-pm2 logs your-app --lines 100
-
-# Check if port is in use
-sudo lsof -i :3000
-
-# Verify environment
-pm2 env your-app
-```
-
-### Nginx issues
-
-```bash
-# Test configuration
-sudo nginx -t
-
-# Check error logs
 sudo tail -f /var/log/nginx/error.log
-
-# Reload configuration
-sudo systemctl reload nginx
 ```
 
-## 📝 Workflow Customization
-
-Each workflow file can be customized:
-
-- **Branches** - Change trigger branches (main, master, prod, etc.)
-- **Node version** - Update in `setup-node` step
-- **Environment** - Configure `APP_BASE_DIR` and `PROJECT_NAME` variables
-- **Build commands** - Customize build steps for your project
-- **PM2 configuration** - Workflows respect your ecosystem.config.js file
-
-### Important Notes
-
-1. **Ecosystem Config**: The workflows will NOT create ecosystem.config.js automatically. You must create and maintain your own in the deployment directory on the server.
-
-2. **Gitignore**: Add to your `.gitignore`:
-   ```
-   ecosystem.config.js
-   .env
-   .env.local
-   ```
-
-3. **File Preservation**: Workflows exclude these files from sync to preserve server configs:
-   - `ecosystem.config.js`
-   - `.env` files
-   - `node_modules`
-   - `.next` (for Next.js)
-
-## 🌐 DNS Configuration
-
-After setting up nginx, you need to point your domain to your EC2 instance.
-
-### Get Your EC2 IP Address
-
+### Check runner status
 ```bash
-# On your EC2 instance
-curl ifconfig.me
-# Or
-hostname -I | awk '{print $1}'
+sudo systemctl status actions.runner.*
 ```
 
-### Configure DNS Records
-
-Log in to your domain registrar (GoDaddy, Namecheap, Cloudflare, etc.) and add DNS records:
-
-#### For Root Domain (example.com)
-```
-Type: A
-Name: @ (or leave empty for root)
-Value: [Your EC2 IP Address]
-TTL: 3600 (or default)
-```
-
-#### For Subdomain (api.example.com, www.example.com)
-```
-Type: A
-Name: api (or www, or any subdomain)
-Value: [Your EC2 IP Address]
-TTL: 3600 (or default)
-```
-
-#### For www Redirect (optional)
-If you want both www and non-www to work, add:
-```
-Type: A
-Name: www
-Value: [Your EC2 IP Address]
-TTL: 3600
-```
-Then uncomment the www redirect block in your nginx config.
-
-### DNS Propagation
-
-- **Typical Time**: 15-30 minutes
-- **Maximum Time**: Up to 48 hours
-- **Check Propagation**: 
-  - Command: `dig your-domain.com`
-  - Online: https://dnschecker.org/
-
-### Testing
-
-Once DNS propagates:
+### Port already in use
 ```bash
-# Test DNS resolution
-dig your-domain.com
-
-# Test HTTP connection (on your server)
-curl http://your-domain.com
-
-# Visit in browser
-http://your-domain.com
+sudo lsof -i :80
+sudo lsof -i :3000
 ```
+
+## 🔐 Security Best Practices
+
+1. ✅ Use SSH keys only (disable password authentication)
+2. ✅ Restrict security groups to necessary ports
+3. ✅ Keep system updated: `sudo apt update && sudo apt upgrade`
+4. ✅ Use GitHub secrets for sensitive data
+5. ✅ Enable HTTPS with Let's Encrypt SSL
+6. ✅ Keep `ecosystem.config.js` out of git
+
+## 📚 Additional Resources
+
+- **Nginx Configuration:** See `nginx/README.md`
+- **PM2 Documentation:** https://pm2.keymetrics.io/
+- **GitHub Actions:** https://docs.github.com/actions
+- **Let's Encrypt:** https://letsencrypt.org/
 
 ## 🤝 Contributing
 
-Feel free to submit issues and pull requests for improvements.
+Issues and pull requests are welcome!
 
 ## 📄 License
 
-MIT License - feel free to use and modify for your projects.
-
+MIT License - Free to use and modify.
