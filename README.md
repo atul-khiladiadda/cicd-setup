@@ -78,30 +78,36 @@ Setup runner:
 
 ### Step 5: Configure GitHub Workflow
 
-1. **Copy workflow to your repository:**
+**1. Copy workflow to your repository:**
 
 ```bash
-# In your project repository
 mkdir -p .github/workflows
-
-# Choose based on your project:
 cp /path/to/cicd-setup/workflows/deploy-nodejs.yml .github/workflows/deploy.yml
-# OR
-cp /path/to/cicd-setup/workflows/deploy-nextjs.yml .github/workflows/deploy.yml
-# OR
-cp /path/to/cicd-setup/workflows/deploy-react.yml .github/workflows/deploy.yml
 ```
 
-2. **Add GitHub secrets** (Repository → Settings → Secrets):
-   - `ENV_FILE` - Your `.env` file contents (optional)
+**2. Customize workflow file (`.github/workflows/deploy.yml`):**
 
-3. **Create `ecosystem.config.js`** in your project root (Node.js/Next.js only):
+Check and update these settings:
+- **Trigger branch**: Change `main` to your branch name
+- **Node version**: Update if needed (e.g., `18`, `20`, `22`)
+- **Project name**: Optionally set custom name
+- **Build command**: Ensure `npm run build` exists in package.json (for TS/Next.js)
+
+**3. Add GitHub secret:**
+
+Repository → Settings → Secrets → New secret:
+- Name: `ENV_FILE`
+- Value: Your entire `.env` file contents
+
+**4. Create `ecosystem.config.js` on server (Node.js/Next.js only):**
+
+SSH to server and create in `/home/ubuntu/app-deploy/your-repo-name/`:
 
 ```javascript
 module.exports = {
   apps: [{
     name: 'my-app',
-    script: './index.js',  // or './dist/index.js'
+    script: './index.js',        // or './dist/index.js' for TypeScript
     instances: 'max',
     exec_mode: 'cluster',
     env_production: {
@@ -112,12 +118,19 @@ module.exports = {
 };
 ```
 
-4. **Add to `.gitignore`:**
+**5. Add to `.gitignore`:**
+
 ```
 ecosystem.config.js
 .env
 .env.local
 ```
+
+**Before deploying, verify:**
+- [ ] Workflow branch matches your repo
+- [ ] Port is same in: app code, ecosystem.config.js, nginx config
+- [ ] GitHub secret added (ENV_FILE)
+- [ ] ecosystem.config.js created on server
 
 ### Step 6: Setup Nginx
 
