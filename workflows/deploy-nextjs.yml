@@ -66,6 +66,8 @@ jobs:
             --exclude '.env' \
             --exclude '.env.local' \
             --exclude '.next' \
+            --exclude 'ecosystem.config.js' \
+            --exclude 'ecosystem.config.cjs' \
             ./ ${{ env.APP_DIR }}/
 
       - name: Setup environment file
@@ -90,9 +92,9 @@ jobs:
         run: |
           # Install all dependencies including devDependencies (needed for build)
           if [ -f package-lock.json ]; then
-            npm ci --include=dev
+            npm ci
           else
-            npm install --include=dev
+            npm install
           fi
 
       - name: Build Next.js application
@@ -109,39 +111,21 @@ jobs:
             exit 1
           fi
 
-      - name: Create PM2 ecosystem file
-        working-directory: ${{ env.APP_DIR }}
-        run: |
-          # Create ecosystem config for Next.js
-          cat > ecosystem.config.js << 'EOF'
-          module.exports = {
-            apps: [{
-              name: '${{ env.PROJECT_NAME }}',
-              script: 'node_modules/next/dist/bin/next',
-              args: 'start',
-              instances: 'max',
-              exec_mode: 'cluster',
-              autorestart: true,
-              watch: false,
-              max_memory_restart: '1G',
-              env_production: {
-                NODE_ENV: 'production',
-                PORT: 3000
-              }
-            }]
-          };
-          EOF
-          
-          echo "✅ PM2 ecosystem config created"
-
       - name: Deploy with PM2
         working-directory: ${{ env.APP_DIR }}
         run: |
+          # Determine ecosystem config file
+          if [ -f ecosystem.config.cjs ]; then
+            PM2_CONFIG="ecosystem.config.cjs"
+          else
+            PM2_CONFIG="ecosystem.config.js"
+          fi
+          
           # Stop and delete existing process
           pm2 delete ${{ env.PROJECT_NAME }} 2>/dev/null || true
           
           # Start application
-          pm2 start ecosystem.config.js --env production
+          pm2 start $PM2_CONFIG --env production
           
           # Save PM2 process list
           pm2 save
@@ -151,9 +135,20 @@ jobs:
           echo "Waiting for Next.js to start..."
           sleep 10
           
-          STATUS=$(pm2 jlist | jq -r '.[] | select(.name=="${{ env.PROJECT_NAME }}") | .pm2_env.status')
+          # Get process status using pm2 jlist
+          PM2_DATA=$(pm2 jlist)
+          echo "PM2 Process List:"
+          echo "$PM2_DATA" | jq '.'
           
-          if [ "$STATUS" = "online" ]; then
+          STATUS=$(echo "$PM2_DATA" | jq -r '.[] | select(.name=="${{ env.PROJECT_NAME }}") | .pm2_env.status' 2>/dev/null || echo "")
+          
+          echo "Process status: '$STATUS'"
+          
+          if [ -z "$STATUS" ]; then
+            echo "❌ Process '${{ env.PROJECT_NAME }}' not found in PM2"
+            pm2 list
+            exit 1
+          elif [ "$STATUS" = "online" ]; then
             echo "✅ Application is running!"
             pm2 show ${{ env.PROJECT_NAME }}
             
@@ -163,7 +158,8 @@ jobs:
             curl -s -o /dev/null -w "HTTP Status: %{http_code}\n" http://localhost:3000 || true
           else
             echo "❌ Application status: $STATUS"
-            pm2 logs ${{ env.PROJECT_NAME }} --lines 50
+            echo "Showing recent logs:"
+            pm2 logs ${{ env.PROJECT_NAME }} --lines 50 --nostream
             exit 1
           fi
 
