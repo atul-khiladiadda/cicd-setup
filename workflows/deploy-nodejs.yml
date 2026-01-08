@@ -65,15 +65,17 @@ jobs:
             --exclude 'node_modules' \
             --exclude '.github' \
             --exclude '.env' \
+            --exclude 'ecosystem.config.js' \
+            --exclude 'ecosystem.config.cjs' \
             ./ ${{ env.APP_DIR }}/
 
       - name: Install dependencies
         working-directory: ${{ env.APP_DIR }}
         run: |
           if [ -f package-lock.json ]; then
-            npm ci --omit=dev
+            npm ci
           else
-            npm install --omit=dev
+            npm install
           fi
 
       - name: Setup environment file
@@ -85,29 +87,6 @@ jobs:
           elif [ -f .env.example ]; then
             cp .env.example .env
             echo "Copied .env.example to .env (update with real values!)"
-          fi
-
-      - name: Verify ecosystem config
-        working-directory: ${{ env.APP_DIR }}
-        run: |
-          if [ ! -f ecosystem.config.js ] && [ ! -f ecosystem.config.cjs ]; then
-            echo "⚠️ No ecosystem.config.js found, creating default..."
-            cat > ecosystem.config.js << 'EOF'
-          module.exports = {
-            apps: [{
-              name: '${{ env.PROJECT_NAME }}',
-              script: './index.js',
-              instances: 'max',
-              exec_mode: 'cluster',
-              autorestart: true,
-              watch: false,
-              max_memory_restart: '500M',
-              env_production: {
-                NODE_ENV: 'production'
-              }
-            }]
-          };
-          EOF
           fi
 
       - name: Deploy with PM2
@@ -131,16 +110,29 @@ jobs:
 
       - name: Health check
         run: |
+          echo "Waiting for application to start..."
           sleep 5
           
-          STATUS=$(pm2 jlist | jq -r '.[] | select(.name=="${{ env.PROJECT_NAME }}") | .pm2_env.status')
+          # Get process status using pm2 jlist
+          PM2_DATA=$(pm2 jlist)
+          echo "PM2 Process List:"
+          echo "$PM2_DATA" | jq '.'
           
-          if [ "$STATUS" = "online" ]; then
+          STATUS=$(echo "$PM2_DATA" | jq -r '.[] | select(.name=="${{ env.PROJECT_NAME }}") | .pm2_env.status' 2>/dev/null || echo "")
+          
+          echo "Process status: '$STATUS'"
+          
+          if [ -z "$STATUS" ]; then
+            echo "❌ Process '${{ env.PROJECT_NAME }}' not found in PM2"
+            pm2 list
+            exit 1
+          elif [ "$STATUS" = "online" ]; then
             echo "✅ Application is running!"
             pm2 show ${{ env.PROJECT_NAME }}
           else
             echo "❌ Application status: $STATUS"
-            pm2 logs ${{ env.PROJECT_NAME }} --lines 50
+            echo "Showing recent logs:"
+            pm2 logs ${{ env.PROJECT_NAME }} --lines 50 --nostream
             exit 1
           fi
 

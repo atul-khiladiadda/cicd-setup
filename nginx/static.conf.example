@@ -1,0 +1,43 @@
+# Nginx Configuration for Static Websites (HTML/React/Vue/Angular)
+# Serves static files directly from a directory
+#
+# Usage:
+# 1. Copy: sudo cp nginx/static.conf.example /etc/nginx/sites-available/your-site
+# 2. Edit: sudo nano /etc/nginx/sites-available/your-site
+# 3. Update: server_name, root path
+# 4. Enable: sudo ln -s /etc/nginx/sites-available/your-site /etc/nginx/sites-enabled/
+# 5. Test: sudo nginx -t
+# 6. Reload: sudo systemctl reload nginx
+
+server {
+    listen 80;
+    listen [::]:80;
+
+    server_name example.com www.example.com;  # Change to your domain
+
+    root /home/ubuntu/app-deploy/your-site;  # Change to your deployment path
+    index index.html;
+
+    client_max_body_size 50M;
+
+    # SPA routing support (fallback to index.html)
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    # Cache static assets
+    location ~* \.(jpg|jpeg|png|gif|ico|svg|webp|woff|woff2|ttf|eot|css|js)$ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+
+    # Don't cache HTML
+    location ~* \.html$ {
+        expires -1;
+        add_header Cache-Control "no-cache, no-store, must-revalidate";
+    }
+
+    # Gzip compression
+    gzip on;
+    gzip_types text/plain text/css application/json application/javascript text/xml application/xml;
+}
