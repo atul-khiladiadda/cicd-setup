@@ -76,85 +76,7 @@ Setup runner:
 ./setup-runner.sh https://github.com/username/repo YOUR_TOKEN my-runner
 ```
 
-### Step 5: Setup Nginx
-
-#### For Node.js/TypeScript/Next.js (Port 3000 apps)
-
-```bash
-sudo cp nginx/proxy.conf.example /etc/nginx/sites-available/myapp
-sudo nano /etc/nginx/sites-available/myapp
-# Edit: server_name and port (default 3000)
-
-sudo ln -s /etc/nginx/sites-available/myapp /etc/nginx/sites-enabled/
-sudo nginx -t && sudo systemctl reload nginx
-```
-
-#### For Static Sites (HTML/React/Vue)
-
-```bash
-sudo cp nginx/static.conf.example /etc/nginx/sites-available/mysite
-sudo nano /etc/nginx/sites-available/mysite
-# Edit: server_name and root path
-
-sudo ln -s /etc/nginx/sites-available/mysite /etc/nginx/sites-enabled/
-sudo nginx -t && sudo systemctl reload nginx
-```
-
-### Step 6: Configure DNS
-
-Get your server IP:
-```bash
-curl ifconfig.me
-```
-
-Add DNS A record at your domain registrar:
-```
-Type: A
-Name: @ (or subdomain)
-Value: Your EC2 IP
-TTL: 3600
-```
-
-Wait 15-30 minutes for DNS propagation, then test:
-```bash
-dig your-domain.com
-curl http://your-domain.com
-```
-
-### Step 7: Setup SSL/HTTPS (Let's Encrypt)
-
-After DNS is working, secure your site with free SSL certificate:
-
-```bash
-cd ssl
-
-# 1. Install Certbot (one-time)
-sudo ./setup-certbot.sh
-
-# 2. Obtain SSL certificate
-# For Node.js/Next.js (reverse proxy):
-sudo ./obtain-ssl-proxy.sh
-
-# For static sites (HTML/React):
-sudo ./obtain-ssl-static.sh
-```
-
-The script will:
-- Request SSL certificate from Let's Encrypt
-- Automatically update nginx config for HTTPS (port 443)
-- Setup HTTP → HTTPS redirect
-- Configure SSL security settings
-- Auto-renewal via cron
-
-Your site will now be accessible at `https://your-domain.com` 🔒
-
-**Manage SSL certificates:**
-```bash
-sudo ./list-ssl.sh      # List all certificates
-sudo ./renew-ssl.sh     # Manual renewal
-```
-
-### Step 8: Configure GitHub Workflow
+### Step 5: Configure GitHub Workflow
 
 1. **Copy workflow to your repository:**
 
@@ -195,6 +117,84 @@ module.exports = {
 ecosystem.config.js
 .env
 .env.local
+```
+
+### Step 6: Setup Nginx
+
+#### For Node.js/TypeScript/Next.js (Port 3000 apps)
+
+```bash
+sudo cp nginx/proxy.conf.example /etc/nginx/sites-available/myapp
+sudo nano /etc/nginx/sites-available/myapp
+# Edit: server_name and port (default 3000)
+
+sudo ln -s /etc/nginx/sites-available/myapp /etc/nginx/sites-enabled/
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+#### For Static Sites (HTML/React/Vue)
+
+```bash
+sudo cp nginx/static.conf.example /etc/nginx/sites-available/mysite
+sudo nano /etc/nginx/sites-available/mysite
+# Edit: server_name and root path
+
+sudo ln -s /etc/nginx/sites-available/mysite /etc/nginx/sites-enabled/
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+### Step 7: Configure DNS
+
+Get your server IP:
+```bash
+curl ifconfig.me
+```
+
+Add DNS A record at your domain registrar:
+```
+Type: A
+Name: @ (or subdomain)
+Value: Your EC2 IP
+TTL: 3600
+```
+
+Wait 15-30 minutes for DNS propagation, then test:
+```bash
+dig your-domain.com
+curl http://your-domain.com
+```
+
+### Step 8: Setup SSL/HTTPS (Let's Encrypt)
+
+After DNS is working, secure your site with free SSL certificate:
+
+```bash
+cd ssl
+
+# 1. Install Certbot (one-time)
+sudo ./setup-certbot.sh
+
+# 2. Obtain SSL certificate
+# For Node.js/Next.js (reverse proxy):
+sudo ./obtain-ssl-proxy.sh
+
+# For static sites (HTML/React):
+sudo ./obtain-ssl-static.sh
+```
+
+The script will:
+- Request SSL certificate from Let's Encrypt
+- Automatically update nginx config for HTTPS (port 443)
+- Setup HTTP → HTTPS redirect
+- Configure SSL security settings
+- Auto-renewal via cron
+
+Your site will now be accessible at `https://your-domain.com` 🔒
+
+**Manage SSL certificates:**
+```bash
+sudo ./list-ssl.sh      # List all certificates
+sudo ./renew-ssl.sh     # Manual renewal
 ```
 
 ### Step 9: Deploy
