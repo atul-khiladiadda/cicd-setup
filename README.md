@@ -188,12 +188,28 @@ cd ssl
 sudo ./setup-certbot.sh
 
 # 2. Obtain SSL certificate
-# For Node.js/Next.js (reverse proxy):
-sudo ./obtain-ssl-proxy.sh
+# For Node.js/TypeScript/Next.js (reverse proxy):
+sudo ./obtain-ssl-proxy.sh your-domain.com 3000 your-email@example.com
 
-# For static sites (HTML/React):
-sudo ./obtain-ssl-static.sh
+# Example:
+sudo ./obtain-ssl-proxy.sh api.example.com 3000 admin@example.com
+
+# For static sites (HTML/React/Vue):
+sudo ./obtain-ssl-static.sh your-domain.com your-email@example.com
+
+# Example:
+sudo ./obtain-ssl-static.sh example.com admin@example.com
 ```
+
+**Command parameters:**
+- `obtain-ssl-proxy.sh <domain> <port> <email>`
+  - **domain**: Your full domain name (e.g., api.example.com)
+  - **port**: Your application port (e.g., 3000)
+  - **email**: Your email for Let's Encrypt notifications
+
+- `obtain-ssl-static.sh <domain> <email>`
+  - **domain**: Your full domain name (e.g., example.com)
+  - **email**: Your email for Let's Encrypt notifications
 
 The script will:
 - Request SSL certificate from Let's Encrypt
