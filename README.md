@@ -205,26 +205,29 @@ sudo ./setup-certbot.sh
 # For Node.js/TypeScript/Next.js (reverse proxy):
 sudo ./obtain-ssl-proxy.sh your-domain.com 3000 your-email@example.com
 
-# Example:
+# Examples:
 sudo ./obtain-ssl-proxy.sh api.example.com 3000 admin@example.com
 
 # For static sites (HTML/React/Vue):
 sudo ./obtain-ssl-static.sh your-domain.com /var/www/your-site your-email@example.com
 
-# Example:
+# Examples:
 sudo ./obtain-ssl-static.sh example.com /var/www/example admin@example.com
+sudo ./obtain-ssl-static.sh "example.com,www.example.com" /var/www/example admin@example.com
 ```
 
 **Command parameters:**
 - `obtain-ssl-proxy.sh <domain> <port> <email>`
-  - **domain**: Your full domain name (e.g., api.example.com)
+  - **domain**: Your domain (single: `example.com` or multiple: `"example.com,www.example.com"`)
   - **port**: Your application port (e.g., 3000)
   - **email**: Your email for Let's Encrypt notifications
 
 - `obtain-ssl-static.sh <domain> <web_root> <email>`
-  - **domain**: Your full domain name (e.g., example.com)
+  - **domain**: Your domain (single: `example.com` or multiple: `"example.com,www.example.com"`)
   - **web_root**: Path where static files are located (e.g., /var/www/example)
   - **email**: Your email for Let's Encrypt notifications
+
+**Note:** Use quotes when passing multiple domains: `"domain1.com,domain2.com"`
 
 The script will:
 - Request SSL certificate from Let's Encrypt
