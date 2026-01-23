@@ -22,14 +22,22 @@ cicd-setup/
 │   ├── setup-wireguard.sh     # Setup WireGuard VPN server
 │   ├── add-client.sh          # Add VPN client
 │   ├── list-clients.sh        # List all clients
-│   └── remove-client.sh       # Remove VPN client
+│   ├── remove-client.sh       # Remove VPN client
+│   └── uninstall-wireguard.sh # Uninstall WireGuard completely
+├── vpn-openvpn/
+│   ├── setup-openvpn.sh       # Setup OpenVPN server
+│   ├── add-client.sh          # Add OpenVPN client
+│   ├── list-clients.sh        # List all clients
+│   ├── remove-client.sh       # Remove client and revoke certificate
+│   └── uninstall-openvpn.sh   # Uninstall OpenVPN completely
 ├── workflows/
 │   ├── deploy-nodejs.yml      # Workflow for Node.js
 │   ├── deploy-nodejs-ts.yml   # Workflow for TypeScript
 │   ├── deploy-nextjs.yml      # Workflow for Next.js
 │   ├── deploy-react.yml       # Workflow for React
 │   └── deploy-static-html.yml # Workflow for static sites
-├── VPN-SETUP.md               # VPN setup guide
+├── VPN-SETUP.md               # WireGuard VPN setup guide
+├── OPENVPN-SETUP.md           # OpenVPN setup guide
 └── README.md                  # This file
 ```
 
@@ -306,9 +314,11 @@ sudo lsof -i :3000
 5. ✅ Enable HTTPS with Let's Encrypt SSL
 6. ✅ Keep `ecosystem.config.js` out of git
 
-## 🔒 Optional: Setup VPN (WireGuard)
+## 🔒 Optional: Setup VPN
 
-For secure access to your server, you can set up a VPN:
+For secure access to your server, choose one of the VPN solutions:
+
+### Option 1: WireGuard (Recommended - Fast & Modern)
 
 ```bash
 cd vpn
@@ -319,16 +329,35 @@ sudo ./add-client.sh laptop
 sudo ./add-client.sh phone
 ```
 
-See `VPN-SETUP.md` for complete VPN setup and management documentation.
+See `VPN-SETUP.md` for complete WireGuard documentation.
+
+### Option 2: OpenVPN (Enterprise Standard)
+
+```bash
+cd vpn-openvpn
+sudo ./setup-openvpn.sh
+
+# Add clients
+sudo ./add-client.sh laptop
+sudo ./add-client.sh phone
+```
+
+See `OPENVPN-SETUP.md` for complete OpenVPN documentation.
+
+**Which to choose?**
+- **WireGuard**: Faster, simpler, better for modern deployments
+- **OpenVPN**: More compatible, better firewall traversal, enterprise-proven
 
 ## 📚 Additional Resources
 
 - **Nginx Configuration:** See `nginx/README.md`
-- **VPN Setup:** See `VPN-SETUP.md`
+- **WireGuard VPN:** See `VPN-SETUP.md`
+- **OpenVPN:** See `OPENVPN-SETUP.md`
 - **PM2 Documentation:** https://pm2.keymetrics.io/
 - **GitHub Actions:** https://docs.github.com/actions
 - **Let's Encrypt:** https://letsencrypt.org/
 - **WireGuard:** https://www.wireguard.com/
+- **OpenVPN:** https://openvpn.net/
 
 ## 🤝 Contributing
 

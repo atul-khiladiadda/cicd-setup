@@ -77,6 +77,23 @@ scp -i your-key.pem ubuntu@your-server-ip:/etc/wireguard/clients/laptop.conf .
      sudo wg-quick up laptop
      ```
 
+## 🗑️ Uninstall WireGuard
+
+To completely remove WireGuard from your system:
+
+```bash
+cd vpn
+sudo ./uninstall-wireguard.sh
+```
+
+This will:
+- Stop and disable WireGuard service
+- Remove WireGuard packages
+- Clean up all configuration files
+- Remove firewall rules
+- Optionally backup configuration before removal
+- Optionally disable IP forwarding
+
 ## 🔧 Management Commands
 
 ### List all clients
