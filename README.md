@@ -209,10 +209,10 @@ sudo ./obtain-ssl-proxy.sh your-domain.com 3000 your-email@example.com
 sudo ./obtain-ssl-proxy.sh api.example.com 3000 admin@example.com
 
 # For static sites (HTML/React/Vue):
-sudo ./obtain-ssl-static.sh your-domain.com your-email@example.com
+sudo ./obtain-ssl-static.sh your-domain.com /var/www/your-site your-email@example.com
 
 # Example:
-sudo ./obtain-ssl-static.sh example.com admin@example.com
+sudo ./obtain-ssl-static.sh example.com /var/www/example admin@example.com
 ```
 
 **Command parameters:**
@@ -221,8 +221,9 @@ sudo ./obtain-ssl-static.sh example.com admin@example.com
   - **port**: Your application port (e.g., 3000)
   - **email**: Your email for Let's Encrypt notifications
 
-- `obtain-ssl-static.sh <domain> <email>`
+- `obtain-ssl-static.sh <domain> <web_root> <email>`
   - **domain**: Your full domain name (e.g., example.com)
+  - **web_root**: Path where static files are located (e.g., /var/www/example)
   - **email**: Your email for Let's Encrypt notifications
 
 The script will:
