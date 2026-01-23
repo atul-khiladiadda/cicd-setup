@@ -18,12 +18,18 @@ cicd-setup/
 │   ├── obtain-ssl-static.sh   # SSL for static sites
 │   ├── renew-ssl.sh           # Renew certificates
 │   └── list-ssl.sh            # List certificates
+├── vpn/
+│   ├── setup-wireguard.sh     # Setup WireGuard VPN server
+│   ├── add-client.sh          # Add VPN client
+│   ├── list-clients.sh        # List all clients
+│   └── remove-client.sh       # Remove VPN client
 ├── workflows/
 │   ├── deploy-nodejs.yml      # Workflow for Node.js
 │   ├── deploy-nodejs-ts.yml   # Workflow for TypeScript
 │   ├── deploy-nextjs.yml      # Workflow for Next.js
 │   ├── deploy-react.yml       # Workflow for React
 │   └── deploy-static-html.yml # Workflow for static sites
+├── VPN-SETUP.md               # VPN setup guide
 └── README.md                  # This file
 ```
 
@@ -300,12 +306,29 @@ sudo lsof -i :3000
 5. ✅ Enable HTTPS with Let's Encrypt SSL
 6. ✅ Keep `ecosystem.config.js` out of git
 
+## 🔒 Optional: Setup VPN (WireGuard)
+
+For secure access to your server, you can set up a VPN:
+
+```bash
+cd vpn
+sudo ./setup-wireguard.sh
+
+# Add clients
+sudo ./add-client.sh laptop
+sudo ./add-client.sh phone
+```
+
+See `VPN-SETUP.md` for complete VPN setup and management documentation.
+
 ## 📚 Additional Resources
 
 - **Nginx Configuration:** See `nginx/README.md`
+- **VPN Setup:** See `VPN-SETUP.md`
 - **PM2 Documentation:** https://pm2.keymetrics.io/
 - **GitHub Actions:** https://docs.github.com/actions
 - **Let's Encrypt:** https://letsencrypt.org/
+- **WireGuard:** https://www.wireguard.com/
 
 ## 🤝 Contributing
 
