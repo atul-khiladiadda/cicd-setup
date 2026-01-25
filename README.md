@@ -84,11 +84,21 @@ Get runner token from GitHub:
 
 Setup runner:
 ```bash
+# Basic setup
 ./setup-runner.sh https://github.com/username/repo YOUR_TOKEN
 
 # With custom name
 ./setup-runner.sh https://github.com/username/repo YOUR_TOKEN my-runner
+
+# With custom name and labels
+./setup-runner.sh https://github.com/username/repo YOUR_TOKEN my-runner "self-hosted,ubuntu,production"
 ```
+
+**Parameters:**
+- **repo_url**: GitHub repository URL (required)
+- **token**: Runner registration token from GitHub (required)
+- **runner_name**: Custom name for the runner (optional, default: hostname)
+- **labels**: Comma-separated labels (optional, default: "self-hosted,ubuntu,ec2")
 
 ### Step 5: Configure GitHub Workflow
 
