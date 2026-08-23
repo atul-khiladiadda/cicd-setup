@@ -72,11 +72,17 @@ jobs:
 
       - name: Install all dependencies (including dev for build)
         working-directory: ${{ env.APP_DIR }}
+        # --include=dev is required because NODE_ENV=production makes npm omit dev deps by default
         run: |
           if [ -f package-lock.json ]; then
-            npm ci
+            npm ci --include=dev
           else
-            npm install
+            npm install --include=dev
+          fi
+
+          if [ ! -x node_modules/.bin/tsc ]; then
+            echo "❌ typescript was not installed - cannot build"
+            exit 1
           fi
 
       - name: Build TypeScript
