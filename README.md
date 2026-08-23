@@ -7,7 +7,8 @@ Complete setup scripts for deploying Node.js/Next.js/React applications on Ubunt
 ```
 cicd-setup/
 ├── setup-dependencies.sh      # Install Node.js, PM2, Nginx
-├── setup-runner.sh            # Setup GitHub Actions runner
+├── setup-runner.sh            # Setup GitHub Actions runner (one per repository)
+├── list-runners.sh            # List all runners installed on the server
 ├── nginx/
 │   ├── proxy.conf.example     # Nginx for Node.js/TypeScript/Next.js
 │   ├── static.conf.example    # Nginx for HTML/React/Vue/Angular
@@ -97,8 +98,19 @@ Setup runner:
 **Parameters:**
 - **repo_url**: GitHub repository URL (required)
 - **token**: Runner registration token from GitHub (required)
-- **runner_name**: Custom name for the runner (optional, default: hostname)
+- **runner_name**: Custom name for the runner (optional, default: `<hostname>-<repo>`)
 - **labels**: Comma-separated labels (optional, default: "self-hosted,ubuntu,ec2")
+
+Each repository gets its own runner directory (`~/actions-runner-<owner>-<repo>`),
+its own systemd service, and a `project-<repo>` label. Running the script for a
+second project will **not** touch runners that are already installed, so you can
+host several projects on one server. See
+[Multiple Projects on One Server](#-multiple-projects-on-one-server).
+
+Check what is already installed at any time:
+```bash
+./list-runners.sh
+```
 
 ### Step 5: Configure GitHub Workflow
 
@@ -268,6 +280,74 @@ Push to your main/master branch and GitHub Actions will automatically deploy! �
 | `deploy-react.yml` | React | Builds, deploys static files |
 | `deploy-static-html.yml` | Static HTML | Deploys static files |
 
+## 🖧 Multiple Projects on One Server
+
+You can host several projects on the same EC2 instance. Run
+`setup-dependencies.sh` once, then repeat Step 4 onwards for each repository.
+
+```bash
+# Project A
+./setup-runner.sh https://github.com/myorg/project-a TOKEN_A
+
+# Project B — does not affect project A's runner
+./setup-runner.sh https://github.com/myorg/project-b TOKEN_B
+
+./list-runners.sh   # Verify both are active
+```
+
+Each project gets its own isolated resources:
+
+| Resource | Per-project value |
+|----------|-------------------|
+| Runner directory | `~/actions-runner-<owner>-<repo>` |
+| Runner name | `<hostname>-<repo>` |
+| systemd service | `actions.runner.<owner>-<repo>.<runner-name>.service` |
+| Runner label | `project-<repo>` |
+| Deploy directory | `/home/ubuntu/app-deploy/<repo>` |
+| PM2 process | `<repo>` (from `ecosystem.config.js`) |
+
+**What you must still make unique per project:**
+
+1. **Application port.** Two apps cannot both listen on 3000. Pick a distinct
+   port per project and keep it identical in your app code,
+   `ecosystem.config.js`, and the nginx config.
+
+```bash
+# Check what is already in use before choosing a port
+sudo lsof -i -P -n | grep LISTEN
+```
+
+2. **Nginx site file and `server_name`.** Use one file per project, named after
+   the project, each with its own domain and `proxy_pass` port:
+
+```bash
+sudo cp nginx/proxy.conf.example /etc/nginx/sites-available/project-a
+sudo nano /etc/nginx/sites-available/project-a   # server_name a.example.com, port 3000
+sudo ln -s /etc/nginx/sites-available/project-a /etc/nginx/sites-enabled/
+
+sudo cp nginx/proxy.conf.example /etc/nginx/sites-available/project-b
+sudo nano /etc/nginx/sites-available/project-b   # server_name b.example.com, port 3001
+sudo ln -s /etc/nginx/sites-available/project-b /etc/nginx/sites-enabled/
+
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+3. **PM2 app name** in `ecosystem.config.js`, so `pm2 delete` in one workflow
+   never stops another project's app.
+
+**Pinning a workflow to a specific runner (optional).** The default
+`runs-on: [self-hosted, ubuntu, ec2]` works because runners are scoped to their
+own repository. If you use organization-level runners, or want a job to run on
+one particular server, target the project label instead:
+
+```yaml
+runs-on: [self-hosted, project-project-a]
+```
+
+**Note for existing single-project servers:** if you already have a runner in
+`~/actions-runner`, it is left in place and reused for its own repository. New
+projects are installed alongside it in their own directories.
+
 ## 🔧 Common Commands
 
 ### PM2 (Process Manager)
@@ -289,10 +369,13 @@ sudo tail -f /var/log/nginx/error.log   # View error logs
 
 ### GitHub Runner
 ```bash
-cd ~/actions-runner
-./check-status.sh           # Check status
-./view-logs.sh              # View logs
-./restart-runner.sh         # Restart runner
+./list-runners.sh                       # List all runners on this server
+
+cd ~/actions-runner-<owner>-<repo>      # Runner directory for one project
+./check-status.sh                       # Check status
+./view-logs.sh                          # View logs for this runner only
+./restart-runner.sh                     # Restart runner
+./remove-runner.sh <removal_token>      # Remove only this project's runner
 ```
 
 ## 🐛 Troubleshooting
@@ -310,7 +393,23 @@ sudo tail -f /var/log/nginx/error.log
 
 ### Check runner status
 ```bash
+./list-runners.sh                     # All runners with repo + status
 sudo systemctl status actions.runner.*
+```
+
+### A previously working project stopped deploying
+Usually its runner is offline. Confirm which runners exist and where they point:
+```bash
+./list-runners.sh
+```
+If a runner shows as inactive, restart it from its own directory:
+```bash
+cd ~/actions-runner-<owner>-<repo> && ./restart-runner.sh
+```
+If the directory is missing or the repository is `<not configured>`, re-run setup
+for that project with a fresh registration token:
+```bash
+./setup-runner.sh https://github.com/owner/repo NEW_TOKEN
 ```
 
 ### Port already in use
