@@ -115,8 +115,9 @@ remote-cert-tls server
 cipher AES-256-GCM
 auth SHA256
 
-# Enable compression
-comp-lzo
+# Compression - intentionally absent (VORACLE attack).
+# The server sets "allow-compression no", so adding comp-lzo or compress here
+# would make this client fail to connect.
 
 # Set log file verbosity
 verb 3

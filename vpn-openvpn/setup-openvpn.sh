@@ -176,6 +176,24 @@ fi
 # Create OpenVPN server configuration
 print_header "Creating OpenVPN Server Configuration"
 
+# Compression is deliberately disabled (VORACLE attack). "allow-compression no"
+# exists from OpenVPN 2.5 onwards; on 2.4 simply omitting comp-lzo/compress is
+# the only way to turn it off, and naming an unknown option stops the server.
+OPENVPN_VERSION=$(openvpn --version 2>/dev/null | head -n1 | awk '{print $2}' || true)
+OPENVPN_MAJOR="${OPENVPN_VERSION%%.*}"
+OPENVPN_MINOR_REST="${OPENVPN_VERSION#*.}"
+OPENVPN_MINOR="${OPENVPN_MINOR_REST%%.*}"
+
+if [[ "$OPENVPN_MAJOR" =~ ^[0-9]+$ ]] && [[ "$OPENVPN_MINOR" =~ ^[0-9]+$ ]] && \
+   { [ "$OPENVPN_MAJOR" -gt 2 ] || { [ "$OPENVPN_MAJOR" -eq 2 ] && [ "$OPENVPN_MINOR" -ge 5 ]; }; }; then
+    COMPRESSION_DIRECTIVE="allow-compression no"
+    print_info "OpenVPN $OPENVPN_VERSION detected - enforcing 'allow-compression no'"
+else
+    COMPRESSION_DIRECTIVE="# allow-compression requires OpenVPN 2.5+ (found ${OPENVPN_VERSION:-unknown})"
+    print_warning "OpenVPN ${OPENVPN_VERSION:-unknown} has no 'allow-compression' option"
+    print_warning "Compression is off because no comp-lzo/compress directive is set"
+fi
+
 cat > $SERVER_DIR/server.conf << EOF
 # OpenVPN Server Configuration
 port $VPN_PORT
@@ -207,8 +225,12 @@ cipher AES-256-GCM
 auth SHA256
 dh $SERVER_DIR/dh.pem
 
+# Compression - disabled on purpose.
+# Compressing before encrypting allows the VORACLE attack to recover plaintext,
+# so do not add comp-lzo or compress here.
+${COMPRESSION_DIRECTIVE}
+
 # Performance
-comp-lzo
 persist-key
 persist-tun
 

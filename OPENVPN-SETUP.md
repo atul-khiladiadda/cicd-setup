@@ -238,6 +238,47 @@ sudo systemctl start openvpn-server@server
 6. ✅ Keep OpenVPN updated: `sudo apt update && sudo apt upgrade openvpn`
 7. ✅ Back up your CA regularly
 8. ✅ Use Certificate Revocation List (CRL) - automatically enabled
+9. ✅ Compression is disabled - see below
+
+## 🚫 Compression is disabled
+
+Compressing data before encrypting it makes the tunnel vulnerable to the
+[VORACLE attack](https://community.openvpn.net/openvpn/wiki/VORACLE), which lets
+an attacker recover plaintext such as session cookies. OpenVPN has deprecated
+all compression options for this reason, and OpenVPN 2.6 disables compression by
+default.
+
+These scripts therefore ship compression off:
+
+- `setup-openvpn.sh` writes `allow-compression no` into `server.conf` (on
+  OpenVPN 2.5+, where the option exists) and never sets `comp-lzo` or `compress`
+- `add-client.sh` generates `.ovpn` files with no compression directive
+
+Verify it on a running server:
+```bash
+grep -E 'allow-compression|comp-lzo|compress' /etc/openvpn/server/server.conf
+```
+You should see only `allow-compression no`.
+
+**Do not re-enable it.** Adding `comp-lzo` or `compress` to a client config
+while the server sets `allow-compression no` also makes that client fail to
+connect, since OpenVPN 2.6 clients refuse contradictory compression settings.
+
+### Existing clients need no changes
+
+If you previously set this server up with compression, you do **not** have to
+reissue or re-download any `.ovpn` file. A client config that still contains
+`comp-lzo` keeps working:
+
+- In current OpenVPN releases `comp-lzo` is only an alias for `asym`, so the
+  client never compresses what it sends
+- The server sends nothing compressed because of `allow-compression no`
+- `allow-compression no` still accepts the compression framing byte that such a
+  client adds, so there is no framing mismatch
+
+The traffic is therefore uncompressed in both directions and VORACLE is
+mitigated even for clients using an old config. You can still drop `comp-lzo`
+from client configs when convenient, since the option is deprecated.
 
 ## 🌐 VPN Network Details
 
@@ -249,6 +290,7 @@ sudo systemctl start openvpn-server@server
 - **Encryption**: AES-256-GCM
 - **Authentication**: SHA256
 - **DNS**: 1.1.1.1, 8.8.8.8
+- **Compression**: disabled (VORACLE)
 
 ## 🐛 Troubleshooting
 
@@ -333,15 +375,12 @@ sudo apt install speedtest-cli
 speedtest-cli
 ```
 
-2. Disable compression (edit server.conf):
-```
-# Comment out or remove:
-# comp-lzo
-```
+2. Consider upgrading EC2 instance type
 
-3. Consider upgrading EC2 instance type
+3. Use UDP instead of TCP for better performance
 
-4. Use UDP instead of TCP for better performance
+Note: compression is disabled by design and is not a tuning option. See
+[Compression is disabled](#-compression-is-disabled).
 
 ## 🔄 Backup and Restore
 
