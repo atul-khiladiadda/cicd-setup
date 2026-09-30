@@ -412,6 +412,30 @@ for that project with a fresh registration token:
 ./setup-runner.sh https://github.com/owner/repo NEW_TOKEN
 ```
 
+### "Your runner version is out of date and can no longer register with GitHub"
+
+GitHub rejects registration from runner versions it no longer supports.
+`setup-runner.sh` installs whatever version is current at the time you run it,
+so just re-run it with a fresh registration token:
+
+```bash
+./setup-runner.sh https://github.com/owner/repo NEW_TOKEN
+```
+
+It prints the version it resolved:
+```
+[INFO] Latest runner version from GitHub: 2.337.0
+```
+
+If the server cannot reach `api.github.com`, the script falls back to a pinned
+version and says so. Check the current release at
+[actions/runner/releases](https://github.com/actions/runner/releases) and pass it
+explicitly:
+
+```bash
+RUNNER_VERSION=2.337.0 ./setup-runner.sh https://github.com/owner/repo NEW_TOKEN
+```
+
 ### Port already in use
 ```bash
 sudo lsof -i :80

@@ -21,7 +21,11 @@ CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
 # Configuration
-RUNNER_VERSION="2.311.0"
+# The runner version is resolved from the latest GitHub release at run time.
+# GitHub refuses registration from runners that are too old, so a hardcoded
+# version breaks this script as soon as it ages. This is only the fallback for
+# when the GitHub API cannot be reached; override with RUNNER_VERSION=...
+RUNNER_VERSION_FALLBACK="2.337.0"
 RUNNER_USER="$(whoami)"
 RUNNER_HOME="${HOME}"
 EXPECTED_USER="ubuntu"
@@ -120,6 +124,24 @@ fi
 # Helpers
 #-------------------------------------------------------------------------------
 
+# Latest runner version published by GitHub, without the leading "v".
+# Empty output means the lookup failed.
+latest_runner_version() {
+    local response
+    response=$(curl -fsSL --max-time 15 \
+        https://api.github.com/repos/actions/runner/releases/latest 2>/dev/null) || return 0
+
+    local version=""
+    if command -v jq >/dev/null 2>&1; then
+        version=$(echo "${response}" | jq -r '.tag_name // empty' 2>/dev/null || true)
+    fi
+    if [[ -z "${version}" ]]; then
+        version=$(echo "${response}" | sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n 1)
+    fi
+
+    echo "${version#v}"
+}
+
 # Print the repository URL a runner directory is currently registered to.
 # Empty output means "not configured" or "cannot tell".
 configured_repo_url() {
@@ -193,11 +215,30 @@ if [[ -d "${RUNNER_DIR}" ]]; then
     fi
 fi
 
+#-------------------------------------------------------------------------------
+# Resolve the runner version to install
+#-------------------------------------------------------------------------------
+if [[ -n "${RUNNER_VERSION:-}" ]]; then
+    log_info "Using runner version ${RUNNER_VERSION} from the environment"
+else
+    RUNNER_VERSION=$(latest_runner_version)
+    if [[ -n "${RUNNER_VERSION}" ]]; then
+        log_info "Latest runner version from GitHub: ${RUNNER_VERSION}"
+    else
+        RUNNER_VERSION="${RUNNER_VERSION_FALLBACK}"
+        log_warn "Could not reach the GitHub releases API"
+        log_warn "Falling back to runner version ${RUNNER_VERSION}"
+        log_warn "If registration fails as out of date, re-run with:"
+        log_warn "  RUNNER_VERSION=<latest> $0 $*"
+    fi
+fi
+
 log_info "Configuration:"
 echo "  Repository: ${REPO_URL}"
 echo "  Runner Name: ${RUNNER_NAME}"
 echo "  Labels: ${RUNNER_LABELS}"
 echo "  Runner Directory: ${RUNNER_DIR}"
+echo "  Runner Version: ${RUNNER_VERSION}"
 echo ""
 
 #-------------------------------------------------------------------------------
@@ -272,8 +313,24 @@ RUNNER_URL="https://github.com/actions/runner/releases/download/v${RUNNER_VERSIO
 if [[ -f "${RUNNER_FILE}" ]]; then
     log_info "Runner archive already exists, skipping download"
 else
-    curl -o "${RUNNER_FILE}" -L "${RUNNER_URL}"
+    # -f so an HTTP error is reported here instead of being saved as a broken
+    # archive that fails later with a confusing tar error
+    if ! curl -fL -o "${RUNNER_FILE}" "${RUNNER_URL}"; then
+        rm -f "${RUNNER_FILE}"
+        log_error "Failed to download runner v${RUNNER_VERSION}"
+        log_error "  ${RUNNER_URL}"
+        log_error "Check that this version exists at https://github.com/actions/runner/releases"
+        exit 1
+    fi
 fi
+
+# Archives from other versions are dead weight once this one is extracted
+for old_archive in actions-runner-linux-*.tar.gz; do
+    if [[ -f "${old_archive}" && "${old_archive}" != "${RUNNER_FILE}" ]]; then
+        log_info "Removing old runner archive ${old_archive}"
+        rm -f "${old_archive}"
+    fi
+done
 
 #-------------------------------------------------------------------------------
 # Extract runner
