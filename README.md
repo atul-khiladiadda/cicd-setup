@@ -9,6 +9,7 @@ cicd-setup/
 ├── setup-dependencies.sh      # Install Node.js, PM2, Nginx
 ├── setup-runner.sh            # Setup GitHub Actions runner (one per repository)
 ├── list-runners.sh            # List all runners installed on the server
+├── remove-runner.sh           # Remove one repository's runner
 ├── nginx/
 │   ├── proxy.conf.example     # Nginx for Node.js/TypeScript/Next.js
 │   ├── static.conf.example    # Nginx for HTML/React/Vue/Angular
@@ -107,9 +108,10 @@ second project will **not** touch runners that are already installed, so you can
 host several projects on one server. See
 [Multiple Projects on One Server](#-multiple-projects-on-one-server).
 
-Check what is already installed at any time:
+Check what is already installed, or remove one repository's runner:
 ```bash
 ./list-runners.sh
+./remove-runner.sh https://github.com/owner/repo YOUR_TOKEN
 ```
 
 ### Step 5: Configure GitHub Workflow
@@ -375,7 +377,19 @@ cd ~/actions-runner-<owner>-<repo>      # Runner directory for one project
 ./check-status.sh                       # Check status
 ./view-logs.sh                          # View logs for this runner only
 ./restart-runner.sh                     # Restart runner
-./remove-runner.sh <removal_token>      # Remove only this project's runner
+```
+
+Remove one repository's runner. Other projects on the server are left alone.
+The token comes from **Settings → Actions → Runners → New self-hosted runner**:
+
+```bash
+./remove-runner.sh https://github.com/owner/repo YOUR_TOKEN
+```
+
+If registration never succeeded, or the runner was already deleted in GitHub:
+
+```bash
+./remove-runner.sh https://github.com/owner/repo --local-only
 ```
 
 ## 🐛 Troubleshooting
